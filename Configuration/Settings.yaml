@@ -1,0 +1,11 @@
+Sitegeist:
+  Flow:
+    AkamaiNetStorage:
+      functionalTests:
+        storageOptions:
+          host: 'YOURHOST-HERE.akamaihd.net'
+          staticHost: 'YOUR-STATIC-HOST-HERE'
+          key: 'YOUR-KEY-HERE'
+          keyName: 'KEY-NAME-HERE'
+          cpCode: 'YOUR-CP-CODE-HERE'
+          restrictedDirectory: 'functional-testcase-storage'

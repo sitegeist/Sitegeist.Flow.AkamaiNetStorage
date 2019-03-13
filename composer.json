@@ -1,0 +1,21 @@
+{
+    "description": "",
+    "type": "neos-package",
+    "name": "sitegeist/flowakamainetstorage",
+    "require": {
+        "neos/flow": "^5.2 || dev-master",
+        "akamai-open/netstorage": "^0.1.0",
+        "guzzlehttp/guzzle": "~6.0",
+        "league/flysystem" : "^1.0.50"
+    },
+    "autoload": {
+        "psr-4": {
+            "Sitegeist\\Flow\\AkamaiNetStorage\\": "Classes/"
+        }
+    },
+    "extra": {
+        "neos": {
+            "package-key": "Sitegeist.Flow.AkamaiNetStorage"
+        }
+    }
+}
