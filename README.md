@@ -94,15 +94,16 @@ Please adjust the `Settings.yaml` as follows to configure the Akamai storages fo
 
 ```yaml
 Sitegeist:
-  AkamaiNetStorage:
-    functionalTests:
-      storageOptions:
-        host: 'YOURHOST-HERE.akamaihd.net'
-        staticHost: 'YOUR-STATIC-HOST-HERE'
-        key: 'YOUR-KEY-HERE'
-        keyName: 'KEY-NAME-HERE'
-        cpCode: 'YOUR-CP-CODE-HERE'
-        restrictedDirectory: 'functional-testcase-storage'
+  Flow:
+    AkamaiNetStorage:
+      functionalTests:
+        storageOptions:
+          host: 'YOURHOST-HERE.akamaihd.net'
+          staticHost: 'YOUR-STATIC-HOST-HERE'
+          key: 'YOUR-KEY-HERE'
+          keyName: 'KEY-NAME-HERE'
+          cpCode: 'YOUR-CP-CODE-HERE'
+          restrictedDirectory: 'functional-testcase-storage'
 ```
 
 **Do not forget to replace the upper case characters with your staging config before running the tests.**
