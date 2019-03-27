@@ -2,8 +2,7 @@
 
 namespace Sitegeist\Flow\AkamaiNetStorage;
 
-use Neos\Flow\Annotations as Flow;
-use Neos\Flow\Aop\Exception\InvalidArgumentException;
+use League\Flysystem\Filesystem;
 
 /**
  * An Akamai NetStorage Connector to be used for the AkamaiStorage and AkamaiTarget implementation
@@ -86,7 +85,7 @@ class Connector {
                     break;
                 default:
                     if ($value !== null) {
-                        throw new InvalidArgumentException(sprintf('An unknown option "%s" was specified in the configuration for akamai %s. Please check your settings.', $key, $name), 1428928229);
+                        throw new \InvalidArgumentException(sprintf('An unknown option "%s" was specified in the configuration for akamai %s. Please check your settings.', $key, $name), 1428928229);
                     }
             }
         }
@@ -156,16 +155,14 @@ class Connector {
         ]);
 
         return $client;
-
-        /* Example:
-            $client->put('/' . $cpCode . '/path/to/file', [
-                'headers' => [
-                    'X-Akamai-ACS-Action' => 'version=1&action=upload&sha1=' .sha1($fileContents)
-                ],
-                'body' => $fileContents
-            ]);
-        */
     }
+
+    /**
+     * cache for createFilesystem()
+     *
+     * @var Filesystem
+     */
+    protected $filesystem;
 
     /**
      * Provides a client for filesystem abstraction (as described here https://github.com/akamai/NetStorageKit-PHP)
@@ -174,10 +171,16 @@ class Connector {
      * @return \League\Flysystem\Filesystem
      */
     public function createFilesystem() {
-        $client = $this->createClient();
-        $adapter = new \Akamai\NetStorage\FileStoreAdapter($client, $this->cpCode);
-        $filesystem = new \League\Flysystem\Filesystem($adapter);
-        return $filesystem;
+        // IMPORTANT: the client needs to be cached and reused otherwise strange things happen
+        // when writing or reading to or from Akamai. There seems to be a problem with shared state
+        // between running clients.
+        if ($this->filesystem === null) {
+            $client = $this->createClient();
+            $adapter = new \Akamai\NetStorage\FileStoreAdapter($client, $this->cpCode);
+            $this->filesystem = new \League\Flysystem\Filesystem($adapter);
+        }
+
+        return $this->filesystem;
     }
 
     /**

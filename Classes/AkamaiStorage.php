@@ -2,7 +2,6 @@
 
 namespace Sitegeist\Flow\AkamaiNetStorage;
 
-use function GuzzleHttp\Psr7\try_fopen;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\PersistentResource;
@@ -200,9 +199,8 @@ class AkamaiStorage implements WritableStorageInterface {
      * Returns a stream handle which can be used internally to open / copy the given resource
      * stored in this storage.
      *
-     * @param \Neos\Flow\ResourceManagement\PersistentResource $resource The resource stored in this storage
-     * @return bool|resource A URI (for example the full path and filename) leading to the resource file or FALSE if it does not exist
-     * @throws Exception
+     * @param PersistentResource $resource The resource stored in this storage
+     * @return resource | boolean The resource stream or false if the stream could not be obtained
      * @api
      */
     public function getStreamByResource(PersistentResource $resource) {
@@ -210,6 +208,7 @@ class AkamaiStorage implements WritableStorageInterface {
         try {
             return $connector->createFilesystem()->readStream($connector->getFullDirectory() . '/' . $resource->getSha1());
         } catch (\Exception $e) {
+            $this->systemLogger->logThrowable($e);
             $message = sprintf('Could not retrieve stream for resource %s', $resource->getSha1());
             $this->systemLogger->log($message, \LOG_ERR);
             return false;
@@ -217,11 +216,12 @@ class AkamaiStorage implements WritableStorageInterface {
     }
 
     /**
+    /**
      * Returns a stream handle which can be used internally to open / copy the given resource
      * stored in this storage.
      *
      * @param string $relativePath A path relative to the storage root, for example "MyFirstDirectory/SecondDirectory/Foo.css"
-     * @return bool|resource A URI (for example the full path and filename) leading to the resource file or FALSE if it does not exist
+     * @return resource | boolean A URI (for example the full path and filename) leading to the resource file or false if it does not exist
      * @throws Exception
      * @api
      */
