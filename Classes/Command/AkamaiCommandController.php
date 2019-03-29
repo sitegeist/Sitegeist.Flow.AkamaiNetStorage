@@ -12,7 +12,6 @@ use Sitegeist\Flow\AkamaiNetStorage\AkamaiStorage;
 use Sitegeist\Flow\AkamaiNetStorage\AkamaiTarget;
 use Sitegeist\Flow\AkamaiNetStorage\Connector;
 
-
 /**
  * Akamai NetStorage command controller
  *
@@ -43,15 +42,15 @@ class AkamaiCommandController extends CommandController {
         $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
 
         if ($storageConnector) {
-            \Neos\Flow\var_dump($storageConnector->testConnection(), 'storage connection is working');
+            $this->outputLine('storage connection is working: ' . ($storageConnector->testConnection() ? 'yes ;)' : 'no'));
         } else {
-            echo "No akamai connector found for storage in collection " . $collectionName . "\n";
+            $this->outputLine("No akamai connector found for storage in collection " . $collectionName . "\n");
         }
 
         if ($targetConnector) {
-            \Neos\Flow\var_dump($targetConnector->testConnection(), 'target connection is working');
+            $this->outputLine('target connection is working: ' . ($targetConnector->testConnection() ? 'yes ;)' : 'no'));
         } else {
-            echo "No akamai connector found for target in collection " . $collectionName . "\n";
+            $this->outputLine("No akamai connector found for target in collection " . $collectionName . "\n");
         }
     }
 
@@ -65,14 +64,15 @@ class AkamaiCommandController extends CommandController {
 
         if ($storageConnector) {
             \Neos\Flow\var_dump($storageConnector->getContentList(), 'storage connector listing');
+
         } else {
-            echo "No akamai connector found for storage in collection " . $collectionName . "\n";
+            $this->outputLine('No akamai connector found for storage in collection ' . $collectionName . "\n");
         }
 
         if ($targetConnector) {
             \Neos\Flow\var_dump($targetConnector->getContentList(), 'target connector listing');
         } else {
-            echo "No akamai connector found for target in collection " . $collectionName . "\n";
+            $this->outputLine('No akamai connector found for target in collection ' . $collectionName . "\n");
         }
     }
 

@@ -5,6 +5,12 @@ as a Storage or a Target in your Neos Project.
 
 It uses the [Akamai PHP Storagekit](https://github.com/akamai/NetStorageKit-PHP)
 
+## Authors & Sponsors
+
+* Florian Heinze - florian.heinze@sandstorm.de
+
+*The development and the public-releases of this package is generously sponsored by http://www.sitegeist.de.*
+
 ## Features
 
 * storage implementation of the `WritableStorageInterface`
