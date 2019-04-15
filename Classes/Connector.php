@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Sitegeist\Flow\AkamaiNetStorage;
 
 use League\Flysystem\Filesystem;
@@ -96,7 +98,7 @@ class Connector {
      *
      * @return string
      */
-    public function getRestrictedDirectory() {
+    public function getRestrictedDirectory(): string {
         return $this->restrictedDirectory;
     }
 
@@ -105,7 +107,7 @@ class Connector {
      *
      * @return string
      */
-    public function getFullDirectory() {
+    public function getFullDirectory(): string {
         return $this->restrictedDirectory . '/' . $this->workingDirectory;
     }
 
@@ -114,7 +116,7 @@ class Connector {
      *
      * @return string
      */
-    public function getRestrictedPath() {
+    public function getRestrictedPath(): string {
         return $this->host . '/' . $this->cpCode . '/' . $this->restrictedDirectory;
     }
 
@@ -123,7 +125,7 @@ class Connector {
      *
      * @return string
      */
-    public function getFullPath() {
+    public function getFullPath(): string {
         return $this->host . '/' . $this->cpCode . '/' . $this->getFullDirectory();
     }
 
@@ -132,14 +134,14 @@ class Connector {
      *
      * @return string
      */
-    public function getFullStaticPath() {
+    public function getFullStaticPath(): string {
         return $this->staticHost . '/' . $this->getFullDirectory();
     }
 
     /**
      * @return \Akamai\Open\EdgeGrid\Client
      */
-    private function createClient() {
+    private function createClient(): \Akamai\Open\EdgeGrid\Client {
         $signer = new \Akamai\NetStorage\Authentication();
         $signer->setKey($this->key, $this->keyName);
 
@@ -170,7 +172,7 @@ class Connector {
      *
      * @return \League\Flysystem\Filesystem
      */
-    public function createFilesystem() {
+    public function createFilesystem(): \League\Flysystem\Filesystem {
         // IMPORTANT: the client needs to be cached and reused otherwise strange things happen
         // when writing or reading to or from Akamai. There seems to be a problem with shared state
         // between running clients.
@@ -186,7 +188,7 @@ class Connector {
     /**
      * @return boolean
      */
-    public function testConnection() {
+    public function testConnection(): bool {
         $this->createFilesystem()->getMetadata($this->getRestrictedDirectory());
         return true;
     }
@@ -196,7 +198,7 @@ class Connector {
      *
      * @return array A nested array with all files an subdirectories
      */
-    public function getContentList() {
+    public function getContentList(): array {
         return $this->createFilesystem()->listContents($this->getFullDirectory(), true);
     }
 
@@ -208,22 +210,23 @@ class Connector {
      * @param string $path
      * @return string
      */
-    public function decodeAkamaiPath($path = '') {
+    public function decodeAkamaiPath($path = ''): string {
         return implode('/', array_map('utf8_decode', explode('/', $path)));
     }
 
     /**
      * Collects all paths inside the $workingDirectory
-     * Paths are sorted by nesting (deepest path first)
+     * Paths are sorted "deepest path first" by default
      *
      * @return array
      */
-    public function collectAllPaths() {
+    public function collectAllPaths(): array {
         $paths = array();
         $it = new \RecursiveIteratorIterator(new \RecursiveArrayIterator($this->getContentList()));
         foreach ($it as $key => $value) {
             if ($key === 'path') {
-                array_unshift($paths, $this->decodeAkamaiPath($value));
+                $decodedPath = $this->decodeAkamaiPath($value);
+                array_unshift($paths, $decodedPath);
             }
         }
 
