@@ -55,7 +55,6 @@ class AkamaiCommandController extends CommandController {
     }
 
     /**
-     *
      * @param string $collectionName
      */
     public function listCommand($collectionName) {
@@ -63,34 +62,25 @@ class AkamaiCommandController extends CommandController {
         $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
 
         if ($storageConnector) {
-            \Neos\Flow\var_dump($storageConnector->getContentList(), 'storage connector listing');
+            $this->outputLine('');
+            $this->outputLine('storage connector listing:');
+            $this->outputLine('------------------------------------------------------');
 
-        } else {
-            $this->outputLine('No akamai connector found for storage in collection ' . $collectionName . "\n");
-        }
-
-        if ($targetConnector) {
-            \Neos\Flow\var_dump($targetConnector->getContentList(), 'target connector listing');
-        } else {
-            $this->outputLine('No akamai connector found for target in collection ' . $collectionName . "\n");
-        }
-    }
-
-    /**
-     * @param string $collectionName
-     */
-    public function listPathsCommand($collectionName) {
-        $storageConnector = $this->getAkamaiStorageConnectorByCollectionName($collectionName);
-        $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
-
-        if ($storageConnector) {
-            \Neos\Flow\var_dump($storageConnector->collectAllPaths(), 'storage connector listing');
+            foreach ($storageConnector->collectAllPaths() as $path) {
+                $this->outputLine($path);
+            }
         } else {
             echo "No akamai connector found for storage in collection " . $collectionName . "\n";
         }
 
         if ($targetConnector) {
-            \Neos\Flow\var_dump($targetConnector->collectAllPaths(), 'target connector listing');
+            $this->outputLine('');
+            $this->outputLine("target connector listing:");
+            $this->outputLine('------------------------------------------------------');
+
+            foreach ($targetConnector->collectAllPaths() as $path) {
+                $this->outputLine($path);
+            }
         } else {
             echo "No akamai connector found for target in collection " . $collectionName . "\n";
         }
@@ -137,17 +127,25 @@ class AkamaiCommandController extends CommandController {
         $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
 
         if ($storageConnector && $areYouSure) {
-            echo "removing files for storage connector\n";
+            $this->outputLine('');
+            $this->outputLine('removing files for storage connector');
+            $this->outputLine('------------------------------------------------------');
             $storageConnector->removeAllFiles();
         } else {
-            echo "No akamai connector found for storage in collection " . $collectionName . "\n";
+            $this->outputLine('');
+            $this->outputLine('No akamai connector found for storage in collection ' . $collectionName);
+            $this->outputLine('------------------------------------------------------');
         }
 
         if ($targetConnector && $areYouSure) {
-            echo "removing files for target connector\n";
+            $this->outputLine('');
+            $this->outputLine('removing files for target connector');
+            $this->outputLine('------------------------------------------------------');
             $targetConnector->removeAllFiles();
         } else {
-            echo "No akamai connector found for target in collection " . $collectionName . "\n";
+            $this->outputLine('');
+            $this->outputLine('No akamai connector found for target in collection ' . $collectionName);
+            $this->outputLine('------------------------------------------------------');
         }
     }
 }
