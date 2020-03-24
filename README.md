@@ -64,6 +64,7 @@ Neos:
 ```
 
 * **`host`**- The host of the API
+* **`proxy`**- The proxy to use (if needed)
 * **`staticHost`** - The host for providing static content
 * **`key`** - The internally-generated Akamai Key. This is the value used when provisioning access to the API.
 * **`keyName`** - The name ("Id") of an Upload Account provisioned to access the target Storage Group. 
