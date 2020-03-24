@@ -60,6 +60,13 @@ class Connector {
      */
     protected $keyName;
 
+    /**
+     * The proxy server to use if the host cannot be reachd directly.
+     *
+     * @var string
+     */
+    protected $proxy;
+    
     public function __construct($options = array(), $name) {
         # checking the configuration
         foreach ($options as $key => $value) {
@@ -85,6 +92,9 @@ class Connector {
                 case 'keyName':
                     $this->keyName = $value;
                     break;
+                case 'proxy':
+                    $this->proxy = $value;
+                    break;    
                 default:
                     if ($value !== null) {
                         throw new \InvalidArgumentException(sprintf('An unknown option "%s" was specified in the configuration for akamai %s. Please check your settings.', $key, $name), 1428928229);
@@ -151,10 +161,18 @@ class Connector {
         $stack = \GuzzleHttp\HandlerStack::create();
         $stack->push($handler, 'netstorage-handler');
 
-        $client = new \Akamai\Open\EdgeGrid\Client([
-            'base_uri' => $this->host,
-            'handler' => $stack
-        ]);
+        if ($this->proxy) {
+            $client = new \Akamai\Open\EdgeGrid\Client([
+                'base_uri' => $this->host,
+                'proxy' => $this->proxy,
+                'handler' => $stack,
+            ]);
+        } else {
+            $client = new \Akamai\Open\EdgeGrid\Client([
+                'base_uri' => $this->host,
+                'handler' => $stack,
+            ]);
+        }
 
         return $client;
     }
