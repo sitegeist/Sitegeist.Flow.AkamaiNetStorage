@@ -186,7 +186,7 @@ class AkamaiTarget implements TargetInterface {
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($relativeTargetPathAndFilename);
 
         try {
-            $connector->createFilesystem()->write($connector->getFullDirectory() . '/' . $encodedRelativeTargetPathAndFilename, $sourceStream);
+            $connector->createFilesystem()->put($connector->getFullDirectory() . '/' . $encodedRelativeTargetPathAndFilename, $sourceStream);
             $this->systemLogger->log(sprintf('Successfully published resource as object "%s" with Sha1 "%s"', $relativeTargetPathAndFilename, $metaData->getSha1() ?: 'unknown'), LOG_DEBUG);
         } catch (\Exception $e) {
             if (is_resource($sourceStream)) {
