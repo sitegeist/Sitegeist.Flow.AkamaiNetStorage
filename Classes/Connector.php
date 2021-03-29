@@ -66,7 +66,7 @@ class Connector {
      * @var string
      */
     protected $proxy;
-    
+
     public function __construct($options = array(), $name) {
         # checking the configuration
         foreach ($options as $key => $value) {
@@ -94,7 +94,7 @@ class Connector {
                     break;
                 case 'proxy':
                     $this->proxy = $value;
-                    break;    
+                    break;
                 default:
                     if ($value !== null) {
                         throw new \InvalidArgumentException(sprintf('An unknown option "%s" was specified in the configuration for akamai %s. Please check your settings.', $key, $name), 1428928229);
@@ -214,10 +214,11 @@ class Connector {
     /**
      * provides a directory listing
      *
+     * @param boolean $recursive
      * @return array A nested array with all files an subdirectories
      */
-    public function getContentList(): array {
-        return $this->createFilesystem()->listContents($this->getFullDirectory(), true);
+    public function getContentList($recursive = true): array {
+        return $this->createFilesystem()->listContents($this->getFullDirectory(), $recursive);
     }
 
     /**
@@ -250,6 +251,25 @@ class Connector {
 
         $paths[] = $this->getFullDirectory();
 
+        return $paths;
+    }
+    /**
+     * Collects all paths inside the $workingDirectory
+     * Paths are sorted "deepest path first" by default
+     *
+     * @param string $directory
+     * @return array
+     */
+    public function collectDirectoryPathes(string $directory): array {
+        $paths = array();
+        $contentList = $this->createFilesystem()->listContents($this->getRestrictedDirectory() . '/' . $directory, false);
+        $it = new \RecursiveIteratorIterator(new \RecursiveArrayIterator($contentList));
+        foreach ($it as $key => $value) {
+            if ($key === 'path') {
+                $decodedPath = $this->decodeAkamaiPath($value);
+                array_unshift($paths, $decodedPath);
+            }
+        }
         return $paths;
     }
 

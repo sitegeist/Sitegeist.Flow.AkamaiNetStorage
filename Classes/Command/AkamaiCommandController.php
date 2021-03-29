@@ -11,6 +11,7 @@ use Neos\Flow\ResourceManagement\ResourceRepository;
 use Sitegeist\Flow\AkamaiNetStorage\AkamaiStorage;
 use Sitegeist\Flow\AkamaiNetStorage\AkamaiTarget;
 use Sitegeist\Flow\AkamaiNetStorage\Connector;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Akamai NetStorage command controller
@@ -28,6 +29,12 @@ class AkamaiCommandController extends CommandController {
      */
     protected $resourceRepository;
 
+    /**
+     * @var array
+     * @Flow\InjectConfiguration(path="defaultConnector.options")
+     */
+    protected $connectorOptions;
+
     function __construct() {
         parent::__construct();
         $this->resourceManager = new ResourceManager;
@@ -35,9 +42,44 @@ class AkamaiCommandController extends CommandController {
     }
 
     /**
+     *
+     */
+    public function showConfigCommand() {
+        $yaml = Yaml::dump($this->connectorOptions, 99);
+        $this->outputLine($yaml . "\n");
+    }
+
+    /**
+     *
+     */
+    public function connectCommand() {
+        $connector = $this->getDefaultAkamaiStorageConnector();
+        if ($connector) {
+            $this->outputLine('connection is working: ' . ($connector->testConnection() ? 'yes ;)' : 'no'));
+        } else {
+            $this->outputLine("No akamai default connector found.\n");
+        }
+    }
+
+    /**
+     * @param string $directory
+     */
+    public function listCommand(string $directory) {
+        $connector = $this->getDefaultAkamaiStorageConnector();
+        if ($connector) {
+            $meta = $connector->createFilesystem()->getMetadata($connector->getRestrictedDirectory() . '/' . $directory);
+
+            $pathes = $connector->collectDirectoryPathes($directory);
+            \Neos\Flow\var_dump($pathes);
+        } else {
+            $this->outputLine("No akamai default connector found.\n");
+        }
+    }
+
+    /**
      * @param string $collectionName
      */
-    public function connectCommand($collectionName) {
+    public function connectCollectionCommand($collectionName) {
         $storageConnector = $this->getAkamaiStorageConnectorByCollectionName($collectionName);
         $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
 
@@ -57,7 +99,7 @@ class AkamaiCommandController extends CommandController {
     /**
      * @param string $collectionName
      */
-    public function listCommand($collectionName) {
+    public function listCollectionCommand($collectionName) {
         $storageConnector = $this->getAkamaiStorageConnectorByCollectionName($collectionName);
         $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
 
@@ -87,10 +129,21 @@ class AkamaiCommandController extends CommandController {
     }
 
     /**
+     * @return Connector|null
+     */
+    private function getDefaultAkamaiStorageConnector(): ?Connector
+    {
+        $options = $this->connectorOptions;
+        $connector = new Connector($options, 'default');
+        return $connector;
+    }
+
+    /**
      * @param string $collectionName
      * @return Connector | null
      */
-    private function getAkamaiStorageConnectorByCollectionName($collectionName) {
+    private function getAkamaiStorageConnectorByCollectionName($collectionName): ?Connector
+    {
         $collection = $this->resourceManager->getCollection($collectionName);
         $storage = $collection->getStorage();
 
@@ -105,7 +158,8 @@ class AkamaiCommandController extends CommandController {
      * @param string $collectionName
      * @return Connector | null
      */
-    private function getAkamaiTargetConnectorByCollectionName($collectionName) {
+    private function getAkamaiTargetConnectorByCollectionName($collectionName): ?Connector
+    {
         $collection = $this->resourceManager->getCollection($collectionName);
         $target = $collection->getTarget();
 
