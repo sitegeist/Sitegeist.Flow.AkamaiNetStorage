@@ -10,6 +10,7 @@ use Neos\Flow\ResourceManagement\PersistentResource;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceMetaDataInterface;
 use Neos\Flow\ResourceManagement\Target\TargetInterface;
+use Psr\Log\LoggerInterface;
 
 /**
  * A resource publishing target based on Akamai NetStorage
@@ -32,7 +33,7 @@ class AkamaiTarget implements TargetInterface {
 
     /**
      * @Flow\Inject
-     * @var \Neos\Flow\Log\SystemLoggerInterface
+     * @var LoggerInterface
      */
     protected $systemLogger;
 
@@ -187,14 +188,14 @@ class AkamaiTarget implements TargetInterface {
 
         try {
             $connector->createFilesystem()->write($connector->getFullDirectory() . '/' . $encodedRelativeTargetPathAndFilename, $sourceStream);
-            $this->systemLogger->log(sprintf('Successfully published resource as object "%s" with Sha1 "%s"', $relativeTargetPathAndFilename, $metaData->getSha1() ?: 'unknown'), LOG_DEBUG);
+            $this->systemLogger->debug(sprintf('Successfully published resource as object "%s" with Sha1 "%s"', $relativeTargetPathAndFilename, $metaData->getSha1() ?: 'unknown'));
         } catch (\Exception $e) {
             if (is_resource($sourceStream)) {
                 fclose($sourceStream);
             }
 
             if (!$e instanceof \League\Flysystem\FileExistsException) {
-                $this->systemLogger->log(sprintf('Failed publishing resource as object "%s" with Sha1 hash "%s": %s', $relativeTargetPathAndFilename, $metaData->getSha1() ?: 'unknown', $e->getMessage()), LOG_DEBUG);
+                $this->systemLogger->debug(sprintf('Failed publishing resource as object "%s" with Sha1 hash "%s": %s', $relativeTargetPathAndFilename, $metaData->getSha1() ?: 'unknown', $e->getMessage()));
                 throw $e;
             }
         }

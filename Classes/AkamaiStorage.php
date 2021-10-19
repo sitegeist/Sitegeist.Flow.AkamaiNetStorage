@@ -12,6 +12,7 @@ use Neos\Flow\ResourceManagement\Storage\StorageObject;
 use Neos\Flow\ResourceManagement\Storage\WritableStorageInterface;
 use Neos\Flow\Utility\Environment;
 
+use Psr\Log\LoggerInterface;
 use Sitegeist\Flow\AkamaiNetStorage\Connector as Connector;
 
 /**
@@ -50,7 +51,7 @@ class AkamaiStorage implements WritableStorageInterface {
 
     /**
      * @Flow\Inject
-     * @var \Neos\Flow\Log\SystemLoggerInterface
+     * @var LoggerInterface
      */
     protected $systemLogger;
 
@@ -208,9 +209,8 @@ class AkamaiStorage implements WritableStorageInterface {
         try {
             return $connector->createFilesystem()->readStream($connector->getFullDirectory() . '/' . $resource->getSha1());
         } catch (\Exception $e) {
-            $this->systemLogger->logThrowable($e);
             $message = sprintf('Could not retrieve stream for resource %s', $resource->getSha1());
-            $this->systemLogger->log($message, \LOG_ERR);
+            $this->systemLogger->error($message, ['exception' => $e]);
             return false;
         }
     }
