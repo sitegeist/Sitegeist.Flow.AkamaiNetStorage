@@ -10,6 +10,7 @@ use Neos\Flow\ResourceManagement\PersistentResource;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceMetaDataInterface;
 use Neos\Flow\ResourceManagement\Target\TargetInterface;
+use Neos\Utility\Arrays;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -24,12 +25,18 @@ class AkamaiTarget implements TargetInterface {
     protected $name;
 
     /**
+     * Target options
+     *
+     * @var array
+     */
+    protected $options;
+
+    /**
      * Internal cache for known storages, indexed by storage name
      *
      * @var array<\Neos\Flow\ResourceManagement\Storage\StorageInterface>
      */
     protected $storages = array();
-
 
     /**
      * @Flow\Inject
@@ -57,7 +64,13 @@ class AkamaiTarget implements TargetInterface {
     /**
      * @var \Sitegeist\Flow\AkamaiNetStorage\Connector
      */
-    protected $connector;
+    protected $connector = null;
+
+    /**
+     * @Flow\InjectConfiguration(path="options")
+     * @var array
+     */
+    protected $connectorOptions;
 
     /**
      * Constructor
@@ -69,7 +82,6 @@ class AkamaiTarget implements TargetInterface {
     public function __construct($name, array $options = array()) {
         $this->name = $name;
         $this->options = $options;
-        $this->connector = new Connector($options, $name);
     }
 
     /**
@@ -87,6 +99,11 @@ class AkamaiTarget implements TargetInterface {
      * @return \Sitegeist\Flow\AkamaiNetStorage\Connector
      */
     public function getConnector() {
+        if ($this->connector instanceof Connector) {
+            return $this->connector;
+        }
+        $options =  Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, $this->options);
+        $this->connector = new Connector($options, $this->name);
         return $this->connector;
     }
 
@@ -112,7 +129,7 @@ class AkamaiTarget implements TargetInterface {
      * @return string The URI
      */
     public function getPublicStaticResourceUri($relativePathAndFilename) {
-        return 'https://' . $this->connector->getFullStaticPath() . '/' . $this->encodeRelativePathAndFilenameForUri($relativePathAndFilename);
+        return 'https://' . $this->getConnector()->getFullStaticPath() . '/' . $this->encodeRelativePathAndFilenameForUri($relativePathAndFilename);
     }
 
     /**
@@ -130,7 +147,7 @@ class AkamaiTarget implements TargetInterface {
         // If we use Akamai as a target and a storage ...
         if ($storage instanceof AkamaiStorage) {
             // ... we need to make sure not to publish into the storage workingDir
-            if ($storage->getConnector()->getFullPath() === $this->connector->getFullPath()) {
+            if ($storage->getConnector()->getFullPath() === $this->getConnector()->getFullPath()) {
                 throw new Exception(sprintf('Could not publish resource with SHA1 hash %s of collection %s because publishing to the storage workDir is not allowed. Choose a different workingDir for your target.', $resource->getSha1(), $collection->getName()), 1428929563);
             };
 
@@ -153,7 +170,7 @@ class AkamaiTarget implements TargetInterface {
      * @return void
      */
     public function unpublishResource(PersistentResource $resource) {
-        $connector = $this->connector;
+        $connector = $this->getConnector();
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
 
         try {
@@ -171,7 +188,7 @@ class AkamaiTarget implements TargetInterface {
      */
     public function getPublicPersistentResourceUri(PersistentResource $resource) {
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
-        return 'https://' . $this->connector->getFullStaticPath() . '/' . $encodedRelativeTargetPathAndFilename;
+        return 'https://' . $this->getConnector()->getFullStaticPath() . '/' . $encodedRelativeTargetPathAndFilename;
     }
 
     /**
@@ -183,7 +200,7 @@ class AkamaiTarget implements TargetInterface {
      * @throws \Exception
      */
     protected function publishFile($sourceStream, $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData) {
-        $connector = $this->connector;
+        $connector = $this->getConnector();
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($relativeTargetPathAndFilename);
 
         try {

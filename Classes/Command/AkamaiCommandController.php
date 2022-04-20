@@ -8,6 +8,7 @@ use Neos\Flow\Cli\CommandController;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceRepository;
 
+use Neos\Utility\Arrays;
 use Sitegeist\Flow\AkamaiNetStorage\AkamaiStorage;
 use Sitegeist\Flow\AkamaiNetStorage\AkamaiTarget;
 use Sitegeist\Flow\AkamaiNetStorage\Connector;
@@ -27,6 +28,12 @@ class AkamaiCommandController extends CommandController {
      * @var ResourceRepository
      */
     protected $resourceRepository;
+
+    /**
+     * @Flow\InjectConfiguration(path="options")
+     * @var array
+     */
+    protected $connectorOptions;
 
     function __construct() {
         parent::__construct();
@@ -54,10 +61,22 @@ class AkamaiCommandController extends CommandController {
         }
     }
 
+    public function listCommand(string $workingDirectory = '/')
+    {
+        $options = $workingDirectory ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $workingDirectory]) : $this->connectorOptions;
+        $connector = new Connector($options, 'cli');
+        $headers = ['name', 'type'];
+        $rows = [];
+        foreach ($connector->getContentList(false) as $path) {
+            $rows[] = [$path['name'], $path['type']];
+        }
+        $this->output->outputTable($rows, $headers, $workingDirectory);
+    }
+
     /**
      * @param string $collectionName
      */
-    public function listCommand($collectionName) {
+    public function listCollectionCommand($collectionName) {
         $storageConnector = $this->getAkamaiStorageConnectorByCollectionName($collectionName);
         $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
 
@@ -122,7 +141,7 @@ class AkamaiCommandController extends CommandController {
      * @param string $collectionName
      * @param string $areYouSure
      */
-    public function nukeCommand($collectionName, $areYouSure) {
+    public function nukeCollectionCommand($collectionName, $areYouSure) {
         $storageConnector = $this->getAkamaiStorageConnectorByCollectionName($collectionName);
         $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
 
