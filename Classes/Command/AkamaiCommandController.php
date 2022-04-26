@@ -65,12 +65,33 @@ class AkamaiCommandController extends CommandController {
     {
         $options = $workingDirectory ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $workingDirectory]) : $this->connectorOptions;
         $connector = new Connector($options, 'cli');
-        $headers = ['name', 'type'];
+        $headers = ['name', 'type', 'mtime'];
         $rows = [];
         foreach ($connector->getContentList(false) as $path) {
-            $rows[] = [$path['name'], $path['type']];
+            $rows[] = [$path['name'], $path['type'], (\DateTime::createFromFormat('U', $path['timestamp']))->format(\DateTimeInterface::ISO8601)];
         }
         $this->output->outputTable($rows, $headers, $workingDirectory);
+    }
+
+    public function cleanupCommand(string $workingDirectory = '/', int $keep = 10) {
+        $options = $workingDirectory ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $workingDirectory]) : $this->connectorOptions;
+        $connector = new Connector($options, 'cli');
+        $paths = $connector->getContentList(false);
+
+        usort($paths, function($a, $b) {
+            if ($a['timestamp'] == $b['timestamp']) {
+                return 0;
+            }
+            return ($a['timestamp'] < $b['timestamp']) ? 1 : -1;
+        });
+
+        $deletableFolders = array_slice($paths, $keep);
+
+        #$filesystem = $connector->createFilesystem();
+        foreach ($deletableFolders as $path) {
+            $this->outputLine('Send delete command for folder "%s"', [$path['path']]);
+            #$filesystem->delete($path['path']);
+        }
     }
 
     /**

@@ -16,6 +16,7 @@ It uses the [Akamai PHP Storagekit](https://github.com/akamai/NetStorageKit-PHP)
 * storage implementation of the `WritableStorageInterface`
 * target implementation of the `TargetInterface` 
 * commands to be run via `./flow` e.g. to test your configuration and connectivity
+* cleanup a folder to remove old assets (useful for post-deploy scripts)
 
 With this connector you can run a Neos website without storing asset (images, PDFs etc.) on your local webserver.
 
@@ -90,6 +91,45 @@ true
 target connection is working
 true
 ```
+
+## Configuring a general connection
+
+Beside using Akamai as a Asset Source for Neos, you can configure a general connection. This is used in the CLI tool `akamai:list` and `akamai:cleanup`.
+
+Configuration is as follow:
+
+```
+Sitegeist:
+  Flow:
+    AkamaiNetStorage:
+      options:
+        host: 'YOURHOST-HERE.akamaihd.net'
+        staticHost: 'YOUR-STATIC-HOST-HERE'
+        key: 'YOUR-KEY-HERE'
+        keyName: 'KEY-NAME-HERE'
+        cpCode: 'YOUR-CP-CODE-HERE'
+        restrictedDirectory: 'YOUR-RESTRICTED-DIRECTORY-HERE'
+```
+
+## Listing content
+
+With the Flow CLI tool you can list content of a specific folder
+
+`./flow akama:list --working-directory <directory>`
+
+The `restrictedDirectory` will be taken into account, when putting together the folder.
+
+## Cleanup
+
+If you are using Akamai for a static asset in a deployment step, you will end up with old assets.
+
+A helping hand with cleaning that up automatically, is the `akama:cleanup` script
+
+`./flow akamai:cleanup --working-directory static --keep 10`
+
+This will remove folders from the `--working-directory` and only keep the number given by the `--keep` argument.
+
+This can be used in a post-build step.
 
 ## Running Tests
 
