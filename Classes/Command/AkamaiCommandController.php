@@ -5,6 +5,7 @@ namespace Sitegeist\Flow\AkamaiNetStorage\Command;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 
+use Neos\Flow\Core\Booting\Scripts;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceRepository;
 
@@ -28,6 +29,12 @@ class AkamaiCommandController extends CommandController {
      * @var ResourceRepository
      */
     protected $resourceRepository;
+
+    /**
+     * @Flow\InjectConfiguration(package="Neos.Flow")
+     * @var array
+     */
+    protected $settings;
 
     /**
      * @Flow\InjectConfiguration(path="options")
@@ -61,36 +68,87 @@ class AkamaiCommandController extends CommandController {
         }
     }
 
-    public function listCommand(string $workingDirectory = '/')
+    public function listCommand(string $orderBy = 'name', string $path = '/')
     {
-        $options = $workingDirectory ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $workingDirectory]) : $this->connectorOptions;
-        $connector = new Connector($options, 'cli');
-        $headers = ['name', 'type', 'mtime'];
-        $rows = [];
-        foreach ($connector->getContentList(false) as $path) {
-            $rows[] = [$path['name'], $path['type'], (\DateTime::createFromFormat('U', $path['timestamp']))->format(\DateTimeInterface::ISO8601)];
+        if (in_array($orderBy, ['name', 'mtime']) === false) {
+            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given',  [$orderBy]);
+            $this->quit(1);
         }
-        $this->output->outputTable($rows, $headers, $workingDirectory);
-    }
 
-    public function cleanupCommand(string $workingDirectory = '/', int $keep = 10) {
-        $options = $workingDirectory ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $workingDirectory]) : $this->connectorOptions;
+        $options = $path ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $path]) : $this->connectorOptions;
         $connector = new Connector($options, 'cli');
-        $paths = $connector->getContentList(false);
+        $contentList = $connector->getContentList(false);
 
-        usort($paths, function($a, $b) {
-            if ($a['timestamp'] == $b['timestamp']) {
+        usort($contentList, function($a, $b) use ($orderBy) {
+            if ($a[$orderBy] == $b[$orderBy]) {
                 return 0;
             }
-            return ($a['timestamp'] < $b['timestamp']) ? 1 : -1;
+            return ($a[$orderBy] < $b[$orderBy]) ? 1 : -1;
         });
 
-        $deletableFolders = array_slice($paths, $keep);
+        $headers = ['name', 'type', 'mtime'];
+        $rows = [];
+        foreach ($contentList as $content) {
+            $rows[] = [$content['name'], $content['type'], (\DateTime::createFromFormat('U', $content['timestamp']))->format(\DateTimeInterface::ISO8601)];
+        }
+        $this->output->outputTable($rows, $headers, $path);
+    }
 
-        #$filesystem = $connector->createFilesystem();
+    public function deleteCommand(string $path, bool $yes = false)
+    {
+        if ($yes === false) {
+            $yes = $this->output->askConfirmation(sprintf('This will delete "%s". Type "yes" to continue' . PHP_EOL, $path), false);
+
+            if ($yes === false) {
+                $this->outputLine('Deletion cancelled');
+                $this->quit(1);
+            }
+        }
+
+        $connector = new Connector($this->connectorOptions, 'cli');
+
+        $connector->createFilesystem()->delete($path);
+    }
+
+    public function cleanupCommand(string $orderBy, string $path = '/', int $keep = 10, bool $yes = false) {
+        if (in_array($orderBy, ['name', 'mtime']) === false) {
+            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given',  [$orderBy]);
+            $this->quit(1);
+        }
+
+        $options = $path ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $path]) : $this->connectorOptions;
+        $connector = new Connector($options, 'cli');
+        $contentList = $connector->getContentList(false);
+
+        usort($contentList, function($a, $b) use ($orderBy) {
+            if ($a[$orderBy] == $b[$orderBy]) {
+                return 0;
+            }
+            return ($a[$orderBy] < $b[$orderBy]) ? 1 : -1;
+        });
+
+        $deletableFolders = array_slice($contentList, $keep);
+        $this->outputLine('The following content will be deleted');
+        $headers = ['name', 'type', 'mtime'];
+        $rows = [];
+        foreach ($deletableFolders as $content) {
+            $rows[] = [$content['name'], $content['type'], (\DateTime::createFromFormat('U', $content['timestamp']))->format(\DateTimeInterface::ISO8601)];
+        }
+        $this->output->outputTable($rows, $headers, $connector->getFullDirectory());
+
+
+        if ($yes === false) {
+            $yes = $this->output->askConfirmation(sprintf('To cleanup the path "%s", you must type "yes"' . PHP_EOL, $path), false);
+
+            if ($yes === false) {
+                $this->outputLine('Cleanup cancelled');
+                $this->quit(1);
+            }
+        }
+
         foreach ($deletableFolders as $path) {
-            $this->outputLine('Send delete command for folder "%s"', [$path['path']]);
-            #$filesystem->delete($path['path']);
+            $this->outputLine('<info>Deleting "%s"</info>', [$path['path']]);
+            Scripts::executeCommand('akamai:delete', $this->settings, false, ['path' => $path['path'], 'yes' => $yes]);
         }
     }
 
