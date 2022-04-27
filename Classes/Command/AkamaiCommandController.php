@@ -2,6 +2,7 @@
 
 namespace Sitegeist\Flow\AkamaiNetStorage\Command;
 
+use League\Flysystem\FileNotFoundException;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 
@@ -86,10 +87,10 @@ class AkamaiCommandController extends CommandController {
             return ($a[$orderBy] < $b[$orderBy]) ? 1 : -1;
         });
 
-        $headers = ['name', 'type', 'mtime'];
+        $headers = ['name', 'path', 'type', 'mtime'];
         $rows = [];
         foreach ($contentList as $content) {
-            $rows[] = [$content['name'], $content['type'], (\DateTime::createFromFormat('U', $content['timestamp']))->format(\DateTimeInterface::ISO8601)];
+            $rows[] = [$content['name'], $content['path'], $content['type'], (\DateTime::createFromFormat('U', $content['timestamp']))->format(\DateTimeInterface::ISO8601)];
         }
         $this->output->outputTable($rows, $headers, $path);
     }
@@ -108,6 +109,25 @@ class AkamaiCommandController extends CommandController {
         $connector = new Connector($this->connectorOptions, 'cli');
 
         $connector->createFilesystem()->delete($path);
+    }
+
+    public function metadataCommand(string $path)
+    {
+        $connector = new Connector($this->connectorOptions, 'cli');
+        try {
+            $metadata = $connector->createFilesystem()->getMetadata($path);
+
+            $headers = ['key', 'value'];
+            $rows = [];
+            foreach ($metadata as $key => $value) {
+                $rows[] = [$key, $value];
+            }
+            $this->output->outputTable($rows, $headers, $path);
+
+        } catch (FileNotFoundException $exception) {
+            $this->outputLine('Path "%s" was not found', [$path]);
+            $this->quit(1);
+        }
     }
 
     public function cleanupCommand(string $orderBy, string $path = '/', int $keep = 10, bool $yes = false) {
@@ -129,10 +149,10 @@ class AkamaiCommandController extends CommandController {
 
         $deletableFolders = array_slice($contentList, $keep);
         $this->outputLine('The following content will be deleted');
-        $headers = ['name', 'type', 'mtime'];
+        $headers = ['name', 'path', 'type', 'mtime'];
         $rows = [];
         foreach ($deletableFolders as $content) {
-            $rows[] = [$content['name'], $content['type'], (\DateTime::createFromFormat('U', $content['timestamp']))->format(\DateTimeInterface::ISO8601)];
+            $rows[] = [$content['name'], $content['path'], $content['type'], (\DateTime::createFromFormat('U', $content['timestamp']))->format(\DateTimeInterface::ISO8601)];
         }
         $this->output->outputTable($rows, $headers, $connector->getFullDirectory());
 
