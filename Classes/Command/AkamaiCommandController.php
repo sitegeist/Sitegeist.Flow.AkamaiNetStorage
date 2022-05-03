@@ -97,8 +97,11 @@ class AkamaiCommandController extends CommandController {
 
     public function deleteCommand(string $path, bool $yes = false)
     {
+        $connector = new Connector($this->connectorOptions, 'cli');
+        $fullPath = ($connector->getRestrictedDirectory() === '') ? $path : $connector->getRestrictedDirectory() . '/' . $path;
+
         if ($yes === false) {
-            $yes = $this->output->askConfirmation(sprintf('This will delete "%s". Type "yes" to continue' . PHP_EOL, $path), false);
+            $yes = $this->output->askConfirmation(sprintf('This will delete "%s". Type "yes" to continue' . PHP_EOL, $fullPath), false);
 
             if ($yes === false) {
                 $this->outputLine('Deletion cancelled');
@@ -106,16 +109,16 @@ class AkamaiCommandController extends CommandController {
             }
         }
 
-        $connector = new Connector($this->connectorOptions, 'cli');
 
-        $connector->createFilesystem()->delete($path);
+        $this->outputLine('This would delete "%s"', [$fullPath]);
+        $connector->createFilesystem()->delete($connector->getFullDirectory() . '/' . $path);
     }
 
     public function metadataCommand(string $path)
     {
         $connector = new Connector($this->connectorOptions, 'cli');
         try {
-            $metadata = $connector->createFilesystem()->getMetadata($path);
+            $metadata = $connector->createFilesystem()->getMetadata($connector->getFullDirectory() . '/' . $path);
 
             $headers = ['key', 'value'];
             $rows = [];
@@ -147,12 +150,12 @@ class AkamaiCommandController extends CommandController {
             return ($a[$orderBy] < $b[$orderBy]) ? 1 : -1;
         });
 
-        $deletableFolders = array_slice($contentList, $keep);
+        $deletablePaths = array_slice($contentList, $keep);
         $this->outputLine('The following content will be deleted');
         $headers = ['name', 'path', 'type', 'mtime'];
         $rows = [];
-        foreach ($deletableFolders as $content) {
-            $rows[] = [$content['name'], $content['path'], $content['type'], (\DateTime::createFromFormat('U', $content['timestamp']))->format(\DateTimeInterface::ISO8601)];
+        foreach ($deletablePaths as $deletablePath) {
+            $rows[] = [$deletablePath['name'], $deletablePath['path'], $deletablePath['type'], (\DateTime::createFromFormat('U', $deletablePath['timestamp']))->format(\DateTimeInterface::ISO8601)];
         }
         $this->output->outputTable($rows, $headers, $connector->getFullDirectory());
 
@@ -166,9 +169,9 @@ class AkamaiCommandController extends CommandController {
             }
         }
 
-        foreach ($deletableFolders as $path) {
-            $this->outputLine('<info>Deleting "%s"</info>', [$path['path']]);
-            Scripts::executeCommand('akamai:delete', $this->settings, false, ['path' => $path['path'], 'yes' => $yes]);
+        foreach ($deletablePaths as $deletablePath) {
+            $this->outputLine('<info>Deleting "%s"</info>', [$deletablePath['path']]);
+            Scripts::executeCommand('akamai:delete', $this->settings, false, ['path' => $path . '/' . $deletablePath['name'], 'yes' => $yes]);
         }
     }
 
