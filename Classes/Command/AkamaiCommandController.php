@@ -69,6 +69,12 @@ class AkamaiCommandController extends CommandController {
         }
     }
 
+    /**
+     * @param string $orderBy 'name' (default) or 'mtime'
+     * @param string $path default '/'
+     * @return void
+     * @throws \Neos\Flow\Cli\Exception\StopCommandException
+     */
     public function listCommand(string $orderBy = 'name', string $path = '/')
     {
         if (in_array($orderBy, ['name', 'mtime']) === false) {
@@ -95,6 +101,13 @@ class AkamaiCommandController extends CommandController {
         $this->output->outputTable($rows, $headers, $path);
     }
 
+    /**
+     * @param string $path
+     * @param bool $yes
+     * @return void
+     * @throws FileNotFoundException
+     * @throws \Neos\Flow\Cli\Exception\StopCommandException
+     */
     public function deleteCommand(string $path, bool $yes = false)
     {
         $connector = new Connector($this->connectorOptions, 'cli');
@@ -108,12 +121,21 @@ class AkamaiCommandController extends CommandController {
                 $this->quit(1);
             }
         }
+        $metadata = $connector->createFilesystem()->getMetadata($connector->getFullDirectory() . '/' . $path);
 
-
-        $this->outputLine('This would delete "%s"', [$fullPath]);
-        $connector->createFilesystem()->delete($connector->getFullDirectory() . '/' . $path);
+        if ($metadata['type'] === 'dir') {
+            $connector->createFilesystem()->deleteDir($connector->getFullDirectory() . '/' . $path);
+            $connector->createFilesystem()->delete($connector->getFullDirectory() . '/' . $path);
+        } else {
+            $connector->createFilesystem()->delete($connector->getFullDirectory() . '/' . $path);
+        }
     }
 
+    /**
+     * @param string $path
+     * @return void
+     * @throws \Neos\Flow\Cli\Exception\StopCommandException
+     */
     public function metadataCommand(string $path)
     {
         $connector = new Connector($this->connectorOptions, 'cli');
@@ -133,6 +155,15 @@ class AkamaiCommandController extends CommandController {
         }
     }
 
+    /**
+     * @param string $orderBy 'name' or 'mtime'
+     * @param string $path
+     * @param int $keep
+     * @param bool $yes
+     * @return void
+     * @throws \Neos\Flow\Cli\Exception\StopCommandException
+     * @throws \Neos\Flow\Core\Booting\Exception\SubProcessException
+     */
     public function cleanupCommand(string $orderBy, string $path = '/', int $keep = 10, bool $yes = false) {
         if (in_array($orderBy, ['name', 'mtime']) === false) {
             $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given',  [$orderBy]);
