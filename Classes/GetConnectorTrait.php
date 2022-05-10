@@ -31,7 +31,7 @@ trait GetConnectorTrait
             return $this->connectorCache[$hash];
         }
 
-        $options =  Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, $options);
+        $options =  Arrays::arrayMergeRecursiveOverrule($this->connectorOptions ?? [], $options);
         $this->connectorCache[$hash] = new Connector($options, $name);
         return $this->connectorCache[$hash];
     }
