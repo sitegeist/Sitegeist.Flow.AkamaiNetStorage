@@ -182,16 +182,16 @@ class AkamaiCommandController extends CommandController {
         });
 
         $deletablePaths = array_slice($contentList, $keep);
-        $this->outputLine('The following content will be deleted');
-        $headers = ['name', 'path', 'type', 'mtime'];
-        $rows = [];
-        foreach ($deletablePaths as $deletablePath) {
-            $rows[] = [$deletablePath['name'], $deletablePath['path'], $deletablePath['type'], (\DateTime::createFromFormat('U', $deletablePath['timestamp']))->format(\DateTimeInterface::ISO8601)];
-        }
-        $this->output->outputTable($rows, $headers, $connector->getFullDirectory());
-
 
         if ($yes === false) {
+            $this->outputLine('The following content will be deleted');
+            $headers = ['name', 'path', 'type', 'mtime'];
+            $rows = [];
+            foreach ($deletablePaths as $deletablePath) {
+                $rows[] = [$deletablePath['name'], $deletablePath['path'], $deletablePath['type'], (\DateTime::createFromFormat('U', $deletablePath['timestamp']))->format(\DateTimeInterface::ISO8601)];
+            }
+            $this->output->outputTable($rows, $headers, $connector->getFullDirectory());
+
             $yes = $this->output->askConfirmation(sprintf('To cleanup the path "%s", you must type "yes"' . PHP_EOL, $path), false);
 
             if ($yes === false) {
@@ -202,7 +202,7 @@ class AkamaiCommandController extends CommandController {
 
         foreach ($deletablePaths as $deletablePath) {
             $this->outputLine('<info>Deleting "%s"</info>', [$deletablePath['path']]);
-            Scripts::executeCommand('akamai:delete', $this->settings, false, ['path' => $path . '/' . $deletablePath['name'], 'yes' => $yes]);
+            $this->deleteCommand($path . '/' . $deletablePath['name'], $yes);
         }
     }
 
