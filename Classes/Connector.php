@@ -66,7 +66,7 @@ class Connector {
      * @var string
      */
     protected $proxy;
-    
+
     public function __construct($options = array(), $name) {
         # checking the configuration
         foreach ($options as $key => $value) {
@@ -94,7 +94,7 @@ class Connector {
                     break;
                 case 'proxy':
                     $this->proxy = $value;
-                    break;    
+                    break;
                 default:
                     if ($value !== null) {
                         throw new \InvalidArgumentException(sprintf('An unknown option "%s" was specified in the configuration for akamai %s. Please check your settings.', $key, $name), 1428928229);
@@ -216,8 +216,8 @@ class Connector {
      *
      * @return array A nested array with all files an subdirectories
      */
-    public function getContentList(): array {
-        return $this->createFilesystem()->listContents($this->getFullDirectory(), true);
+    public function getContentList(bool $recursive = true): array {
+        return $this->createFilesystem()->listContents($this->getFullDirectory(), $recursive);
     }
 
     /**

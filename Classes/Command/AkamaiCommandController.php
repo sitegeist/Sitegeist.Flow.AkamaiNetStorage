@@ -2,12 +2,15 @@
 
 namespace Sitegeist\Flow\AkamaiNetStorage\Command;
 
+use League\Flysystem\FileNotFoundException;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 
+use Neos\Flow\Core\Booting\Scripts;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceRepository;
 
+use Neos\Utility\Arrays;
 use Sitegeist\Flow\AkamaiNetStorage\AkamaiStorage;
 use Sitegeist\Flow\AkamaiNetStorage\AkamaiTarget;
 use Sitegeist\Flow\AkamaiNetStorage\Connector;
@@ -27,6 +30,18 @@ class AkamaiCommandController extends CommandController {
      * @var ResourceRepository
      */
     protected $resourceRepository;
+
+    /**
+     * @Flow\InjectConfiguration(package="Neos.Flow")
+     * @var array
+     */
+    protected $settings;
+
+    /**
+     * @Flow\InjectConfiguration(path="options")
+     * @var array
+     */
+    protected $connectorOptions;
 
     function __construct() {
         parent::__construct();
@@ -55,9 +70,146 @@ class AkamaiCommandController extends CommandController {
     }
 
     /**
+     * @param string $orderBy 'name' (default) or 'mtime'
+     * @param string $path default '/'
+     * @return void
+     * @throws \Neos\Flow\Cli\Exception\StopCommandException
+     */
+    public function listCommand(string $orderBy = 'name', string $path = '/')
+    {
+        if (in_array($orderBy, ['name', 'mtime']) === false) {
+            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given',  [$orderBy]);
+            $this->quit(1);
+        }
+
+        $options = $path ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $path]) : $this->connectorOptions;
+        $connector = new Connector($options, 'cli');
+        $contentList = $connector->getContentList(false);
+
+        usort($contentList, function($a, $b) use ($orderBy) {
+            if ($a[$orderBy] == $b[$orderBy]) {
+                return 0;
+            }
+            return ($a[$orderBy] < $b[$orderBy]) ? 1 : -1;
+        });
+
+        $headers = ['name', 'path', 'type', 'mtime'];
+        $rows = [];
+        foreach ($contentList as $content) {
+            $rows[] = [$content['name'], $content['path'], $content['type'], (\DateTime::createFromFormat('U', $content['timestamp']))->format(\DateTimeInterface::ISO8601)];
+        }
+        $this->output->outputTable($rows, $headers, $path);
+    }
+
+    /**
+     * @param string $path
+     * @param bool $yes
+     * @return void
+     * @throws FileNotFoundException
+     * @throws \Neos\Flow\Cli\Exception\StopCommandException
+     */
+    public function deleteCommand(string $path, bool $yes = false)
+    {
+        $connector = new Connector($this->connectorOptions, 'cli');
+        $fullPath = ($connector->getRestrictedDirectory() === '') ? $path : $connector->getRestrictedDirectory() . '/' . $path;
+
+        if ($yes === false) {
+            $yes = $this->output->askConfirmation(sprintf('This will delete "%s". Type "yes" to continue' . PHP_EOL, $fullPath), false);
+
+            if ($yes === false) {
+                $this->outputLine('Deletion cancelled');
+                $this->quit(1);
+            }
+        }
+        $metadata = $connector->createFilesystem()->getMetadata($connector->getFullDirectory() . '/' . $path);
+
+        if ($metadata['type'] === 'dir') {
+            $connector->createFilesystem()->deleteDir($connector->getFullDirectory() . '/' . $path);
+            $connector->createFilesystem()->delete($connector->getFullDirectory() . '/' . $path);
+        } else {
+            $connector->createFilesystem()->delete($connector->getFullDirectory() . '/' . $path);
+        }
+    }
+
+    /**
+     * @param string $path
+     * @return void
+     * @throws \Neos\Flow\Cli\Exception\StopCommandException
+     */
+    public function metadataCommand(string $path)
+    {
+        $connector = new Connector($this->connectorOptions, 'cli');
+        try {
+            $metadata = $connector->createFilesystem()->getMetadata($connector->getFullDirectory() . '/' . $path);
+
+            $headers = ['key', 'value'];
+            $rows = [];
+            foreach ($metadata as $key => $value) {
+                $rows[] = [$key, $value];
+            }
+            $this->output->outputTable($rows, $headers, $path);
+
+        } catch (FileNotFoundException $exception) {
+            $this->outputLine('Path "%s" was not found', [$path]);
+            $this->quit(1);
+        }
+    }
+
+    /**
+     * @param string $orderBy 'name' or 'mtime'
+     * @param string $path
+     * @param int $keep
+     * @param bool $yes
+     * @return void
+     * @throws \Neos\Flow\Cli\Exception\StopCommandException
+     * @throws \Neos\Flow\Core\Booting\Exception\SubProcessException
+     */
+    public function cleanupCommand(string $orderBy, string $path = '/', int $keep = 10, bool $yes = false) {
+        if (in_array($orderBy, ['name', 'mtime']) === false) {
+            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given',  [$orderBy]);
+            $this->quit(1);
+        }
+
+        $options = $path ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $path]) : $this->connectorOptions;
+        $connector = new Connector($options, 'cli');
+        $contentList = $connector->getContentList(false);
+
+        usort($contentList, function($a, $b) use ($orderBy) {
+            if ($a[$orderBy] == $b[$orderBy]) {
+                return 0;
+            }
+            return ($a[$orderBy] < $b[$orderBy]) ? 1 : -1;
+        });
+
+        $deletablePaths = array_slice($contentList, $keep);
+
+        if ($yes === false) {
+            $this->outputLine('The following content will be deleted');
+            $headers = ['name', 'path', 'type', 'mtime'];
+            $rows = [];
+            foreach ($deletablePaths as $deletablePath) {
+                $rows[] = [$deletablePath['name'], $deletablePath['path'], $deletablePath['type'], (\DateTime::createFromFormat('U', $deletablePath['timestamp']))->format(\DateTimeInterface::ISO8601)];
+            }
+            $this->output->outputTable($rows, $headers, $connector->getFullDirectory());
+
+            $yes = $this->output->askConfirmation(sprintf('To cleanup the path "%s", you must type "yes"' . PHP_EOL, $path), false);
+
+            if ($yes === false) {
+                $this->outputLine('Cleanup cancelled');
+                $this->quit(1);
+            }
+        }
+
+        foreach ($deletablePaths as $deletablePath) {
+            $this->outputLine('<info>Deleting "%s"</info>', [$deletablePath['path']]);
+            $this->deleteCommand($path . '/' . $deletablePath['name'], $yes);
+        }
+    }
+
+    /**
      * @param string $collectionName
      */
-    public function listCommand($collectionName) {
+    public function listCollectionCommand($collectionName) {
         $storageConnector = $this->getAkamaiStorageConnectorByCollectionName($collectionName);
         $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
 
@@ -122,7 +274,7 @@ class AkamaiCommandController extends CommandController {
      * @param string $collectionName
      * @param string $areYouSure
      */
-    public function nukeCommand($collectionName, $areYouSure) {
+    public function nukeCollectionCommand($collectionName, $areYouSure) {
         $storageConnector = $this->getAkamaiStorageConnectorByCollectionName($collectionName);
         $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
 

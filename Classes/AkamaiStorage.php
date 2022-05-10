@@ -19,6 +19,9 @@ use Sitegeist\Flow\AkamaiNetStorage\Connector as Connector;
  * A resource storage based on Akamai NetStorage
  */
 class AkamaiStorage implements WritableStorageInterface {
+
+    use GetConnectorTrait;
+
     /**
      * Name which identifies this resource storage
      *
@@ -56,11 +59,6 @@ class AkamaiStorage implements WritableStorageInterface {
     protected $systemLogger;
 
     /**
-     * @var \Sitegeist\Flow\AkamaiNetStorage\Connector
-     */
-    protected $connector;
-
-    /**
      * Constructor
      *
      * @param string $name Name of this storage instance, according to the resource settings
@@ -70,7 +68,6 @@ class AkamaiStorage implements WritableStorageInterface {
     public function __construct($name, array $options = array()) {
         $this->name = $name;
         $this->options = $options;
-        $this->connector = new Connector($options, $name);
     }
 
     /**
@@ -80,15 +77,6 @@ class AkamaiStorage implements WritableStorageInterface {
      */
     public function getName() {
         return $this->name;
-    }
-
-    /**
-     * Returns the instance name of this storage
-     *
-     * @return \Sitegeist\Flow\AkamaiNetStorage\Connector
-     */
-    public function getConnector() {
-        return $this->connector;
     }
 
     /**
@@ -157,7 +145,7 @@ class AkamaiStorage implements WritableStorageInterface {
 
         try {
             // first checking if a resource exists, assuming it does
-            $connector = new Connector($this->options, $this->name);
+            $connector = $this->getConnector($this->name, $this->options);
             $connector->createFilesystem()->getMetadata($connector->getFullDirectory() . '/' . $sha1Hash);
             $resourceAlreadyExists = true;
         } catch (\League\Flysystem\FileNotFoundException $exception) {
@@ -167,7 +155,7 @@ class AkamaiStorage implements WritableStorageInterface {
 
         if (!$resourceAlreadyExists) {
             // write a resource to the storage
-            $connector = new Connector($this->options, $this->name);
+            $connector = $this->getConnector($this->name, $this->options);
             $connector->createFilesystem()->write($connector->getFullDirectory() . '/' . $sha1Hash, $content);
         }
 
@@ -182,7 +170,7 @@ class AkamaiStorage implements WritableStorageInterface {
      * @api
      */
     public function deleteResource(PersistentResource $resource) {
-        $connector = $this->connector;
+        $connector = $this->getConnector($this->name, $this->options);
 
         try {
             // delete() returns boolean
@@ -205,7 +193,7 @@ class AkamaiStorage implements WritableStorageInterface {
      * @api
      */
     public function getStreamByResource(PersistentResource $resource) {
-        $connector = $this->connector;
+        $connector = $this->getConnector($this->name, $this->options);
         try {
             return $connector->createFilesystem()->readStream($connector->getFullDirectory() . '/' . $resource->getSha1());
         } catch (\Exception $e) {
@@ -281,7 +269,7 @@ class AkamaiStorage implements WritableStorageInterface {
         $resource->setSha1($sha1Hash);
         $resource->setMd5($md5Hash);
 
-        $connector = $this->connector;
+        $connector = $this->getConnector($this->name, $this->options);
 
         try {
             // first checking if a resource exists, assuming it does
