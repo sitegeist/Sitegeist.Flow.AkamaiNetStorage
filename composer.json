@@ -4,7 +4,7 @@
     "name": "sitegeist/flowakamainetstorage",
     "require": {
         "neos/flow": "~6.0 || ~7.0 || dev-master",
-      "akamai-open/netstorage": "0.2.0",
+        "akamai-open/netstorage": "^0.1.0",
         "guzzlehttp/guzzle": "~6.0",
         "league/flysystem" : "^1.0.50"
     },
