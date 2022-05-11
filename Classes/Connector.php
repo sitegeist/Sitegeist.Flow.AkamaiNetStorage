@@ -196,7 +196,7 @@ class Connector {
         // between running clients.
         if ($this->filesystem === null) {
             $client = $this->createClient();
-            $adapter = new \Akamai\NetStorage\FileStoreAdapter($client, $this->cpCode);
+            $adapter = new FileStoreAdapter($client, $this->cpCode);
             $this->filesystem = new \League\Flysystem\Filesystem($adapter);
         }
 
