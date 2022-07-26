@@ -67,7 +67,7 @@ class Connector {
      */
     protected $proxy;
 
-    public function __construct($options = array(), $name) {
+    public function __construct($options, $name) {
         # checking the configuration
         foreach ($options as $key => $value) {
             switch ($key) {
