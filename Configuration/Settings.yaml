@@ -9,8 +9,3 @@ Sitegeist:
           keyName: 'KEY-NAME-HERE'
           cpCode: 'YOUR-CP-CODE-HERE'
           restrictedDirectory: 'functional-testcase-storage'
-Neos:
-  Flow:
-    object:
-      includeClasses:
-        'akamaiopen.netstorage': ['.*']
