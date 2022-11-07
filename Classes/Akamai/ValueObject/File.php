@@ -7,7 +7,6 @@ use Neos\Flow\Annotations as Flow;
 #[Flow\Proxy(false)]
 final class File
 {
-
     const TYPE_DIRECTORY = 'dir';
     const TYPE_FILE = 'file';
     const TYPE_SYMLINK = 'symlink';
@@ -22,7 +21,8 @@ final class File
         public ?int $size = null,
         public ?string $md5 = null,
         public array $children = []
-    ){}
+    ) {
+    }
 
     public static function create(Path $path, string $type, string $name, int $mtime): self
     {

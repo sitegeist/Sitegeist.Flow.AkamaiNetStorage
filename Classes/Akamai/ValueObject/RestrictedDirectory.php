@@ -9,7 +9,8 @@ final class RestrictedDirectory
 {
     protected function __construct(
         protected string $value
-    ) {}
+    ) {
+    }
 
     public static function fromString(string $value): self
     {

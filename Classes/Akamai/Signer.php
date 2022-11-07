@@ -81,9 +81,11 @@ final class Signer
 
         return base64_encode(
             hash_hmac(
-                'sha256', $value, $this->key->getValue(), true
+                'sha256',
+                $value,
+                $this->key->getValue(),
+                true
             )
         );
     }
-
 }

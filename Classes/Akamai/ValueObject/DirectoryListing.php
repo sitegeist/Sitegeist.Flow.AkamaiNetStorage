@@ -10,7 +10,8 @@ final class DirectoryListing
     protected function __construct(
         public Path $path,
         public array $files = []
-    ){}
+    ) {
+    }
 
     public static function fromXml(string $xml): self
     {

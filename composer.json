@@ -7,6 +7,10 @@
     "neos/flow": "~6.0 || ~7.0 || ~8.0 || dev-master",
     "guzzlehttp/guzzle": "~6.0"
   },
+  "require-dev": {
+    "phpstan/phpstan": "^1.8",
+    "squizlabs/php_codesniffer": "^3.7"
+  },
   "autoload": {
     "psr-4": {
       "Sitegeist\\Flow\\AkamaiNetStorage\\": "Classes/"
@@ -20,6 +24,18 @@
   "extra": {
     "neos": {
       "package-key": "Sitegeist.Flow.AkamaiNetStorage"
+    }
+  },
+  "scripts": {
+    "fix:style": "phpcbf --colors --standard=PSR12 Classes",
+    "test:style": "phpcs --colors -n --standard=PSR12 Classes",
+    "test:stan": "phpstan analyse -l 9 Classes",
+    "cc": "phpstan clear cache",
+    "test": ["composer install", "composer test:style" , "composer test:stan"]
+  },
+  "config": {
+    "allow-plugins": {
+      "neos/composer-plugin": true
     }
   }
 }

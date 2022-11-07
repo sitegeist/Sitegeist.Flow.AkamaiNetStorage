@@ -5,11 +5,9 @@ namespace Sitegeist\Flow\AkamaiNetStorage\Command;
 use League\Flysystem\FileNotFoundException;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
-
 use Neos\Flow\Core\Booting\Scripts;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceRepository;
-
 use Neos\Utility\Arrays;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\Client;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\Response\File;
@@ -25,8 +23,8 @@ use Sitegeist\Flow\AkamaiNetStorage\Exception\FileDoesNotExistsException;
  *
  * @Flow\Scope("singleton")
  */
-class AkamaiCommandController extends CommandController {
-
+class AkamaiCommandController extends CommandController
+{
     use AkamaiClientTrait;
 
     /**
@@ -51,16 +49,18 @@ class AkamaiCommandController extends CommandController {
      */
     protected $connectorOptions;
 
-    function __construct() {
+    public function __construct()
+    {
         parent::__construct();
-        $this->resourceManager = new ResourceManager;
-        $this->resourceRepository = new ResourceRepository;
+        $this->resourceManager = new ResourceManager();
+        $this->resourceRepository = new ResourceRepository();
     }
 
     /**
      * @param string $collectionName
      */
-    public function connectCommand($collectionName) {
+    public function connectCommand($collectionName)
+    {
         $storageClient = $this->getAkamaiStorageClientByCollectionName($collectionName);
         $targetClient = $this->getAkamaiTargetClientByCollectionName($collectionName);
 
@@ -86,14 +86,14 @@ class AkamaiCommandController extends CommandController {
     public function listCommand(string $orderBy = 'name', string $path = '/')
     {
         if (in_array($orderBy, ['name', 'mtime']) === false) {
-            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given',  [$orderBy]);
+            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given', [$orderBy]);
             $this->quit(1);
         }
 
         $client = Client::fromOptions($this->connectorOptions);
         $directoryListing = $client->dir(Path::fromString($path));
 
-        usort($directoryListing->files, function($a, $b) use ($orderBy) {
+        usort($directoryListing->files, function ($a, $b) use ($orderBy) {
             if ($a->$orderBy == $b->$orderBy) {
                 return 0;
             }
@@ -171,7 +171,6 @@ class AkamaiCommandController extends CommandController {
             $rows[] = [$key, $value];
         }
         $this->output->outputTable($rows, $headers, $path);
-
     }
 
     /**
@@ -183,9 +182,10 @@ class AkamaiCommandController extends CommandController {
      * @throws \Neos\Flow\Cli\Exception\StopCommandException
      * @throws \Neos\Flow\Core\Booting\Exception\SubProcessException
      */
-    public function cleanupCommand(string $orderBy, string $path = '/', int $keep = 10, bool $yes = false) {
+    public function cleanupCommand(string $orderBy, string $path = '/', int $keep = 10, bool $yes = false)
+    {
         if (in_array($orderBy, ['name', 'mtime']) === false) {
-            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given',  [$orderBy]);
+            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given', [$orderBy]);
             $this->quit(1);
         }
 
@@ -194,7 +194,7 @@ class AkamaiCommandController extends CommandController {
         $directoryListing = $client->dir(Path::fromString($path));
 
         $files = $directoryListing->files;
-        usort($files, function($a, $b) use ($orderBy) {
+        usort($files, function ($a, $b) use ($orderBy) {
             if ($a->$orderBy == $b->$orderBy) {
                 return 0;
             }
@@ -235,7 +235,8 @@ class AkamaiCommandController extends CommandController {
     /**
      * @param string $collectionName
      */
-    public function listCollectionCommand($collectionName) {
+    public function listCollectionCommand($collectionName)
+    {
         $storageConnector = $this->getAkamaiStorageClientByCollectionName($collectionName);
         $targetConnector = $this->getAkamaiTargetClientByCollectionName($collectionName);
 
@@ -295,7 +296,8 @@ class AkamaiCommandController extends CommandController {
      * @param string $collectionName
      * @param string $areYouSure
      */
-    public function nukeCollectionCommand($collectionName, $areYouSure) {
+    public function nukeCollectionCommand($collectionName, $areYouSure)
+    {
         $storageConnector = $this->getAkamaiStorageClientByCollectionName($collectionName);
         $targetConnector = $this->getAkamaiTargetClientByCollectionName($collectionName);
 
@@ -321,6 +323,4 @@ class AkamaiCommandController extends CommandController {
             $this->outputLine('------------------------------------------------------');
         }
     }
-
-
 }

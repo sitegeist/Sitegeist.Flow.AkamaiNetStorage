@@ -16,8 +16,8 @@ use Psr\Log\LoggerInterface;
 /**
  * A resource publishing target based on Akamai NetStorage
  */
-class AkamaiTarget implements TargetInterface {
-
+class AkamaiTarget implements TargetInterface
+{
     use GetConnectorTrait;
 
     /**
@@ -71,7 +71,8 @@ class AkamaiTarget implements TargetInterface {
      * @param array $options Options for this target
      * @throws Exception
      */
-    public function __construct($name, array $options = array()) {
+    public function __construct($name, array $options = array())
+    {
         $this->name = $name;
         $this->options = $options;
     }
@@ -81,7 +82,8 @@ class AkamaiTarget implements TargetInterface {
      *
      * @return string The target instance name
      */
-    public function getName() {
+    public function getName()
+    {
         return $this->name;
     }
 
@@ -93,7 +95,8 @@ class AkamaiTarget implements TargetInterface {
      * @return void
      * @throws Exception
      */
-    public function publishCollection(CollectionInterface $collection, callable $callback = null) {
+    public function publishCollection(CollectionInterface $collection, callable $callback = null)
+    {
         foreach ($collection->getObjects() as $object) {
             /** @var \Neos\Flow\ResourceManagement\Storage\StorageObject $object */
             $this->publishFile($object->getStream(), $this->getRelativePublicationPathAndFilename($object), $object);
@@ -106,7 +109,8 @@ class AkamaiTarget implements TargetInterface {
      * @param string $relativePathAndFilename Relative path and filename of the static resource
      * @return string The URI
      */
-    public function getPublicStaticResourceUri($relativePathAndFilename) {
+    public function getPublicStaticResourceUri($relativePathAndFilename)
+    {
         return 'https://' . $this->getConnector($this->name, $this->options)->getFullStaticPath() . '/' . $this->encodeRelativePathAndFilenameForUri($relativePathAndFilename);
     }
 
@@ -118,7 +122,8 @@ class AkamaiTarget implements TargetInterface {
      * @return void
      * @throws Exception
      */
-    public function publishResource(PersistentResource $resource, CollectionInterface $collection) {
+    public function publishResource(PersistentResource $resource, CollectionInterface $collection)
+    {
         // TODO: check not to puplish to storage directory
         $storage = $collection->getStorage();
 
@@ -147,7 +152,8 @@ class AkamaiTarget implements TargetInterface {
      * @param \Neos\Flow\ResourceManagement\PersistentResource $resource The resource to unpublish
      * @return void
      */
-    public function unpublishResource(PersistentResource $resource) {
+    public function unpublishResource(PersistentResource $resource)
+    {
         $connector = $this->getConnector($this->name, $this->options);
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
 
@@ -164,7 +170,8 @@ class AkamaiTarget implements TargetInterface {
      * @param \Neos\Flow\ResourceManagement\PersistentResource $resource Resource object or the resource hash of the resource
      * @return string The URI
      */
-    public function getPublicPersistentResourceUri(PersistentResource $resource) {
+    public function getPublicPersistentResourceUri(PersistentResource $resource)
+    {
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
         return 'https://' . $this->getConnector($this->name, $this->options)->getFullStaticPath() . '/' . $encodedRelativeTargetPathAndFilename;
     }
@@ -177,7 +184,8 @@ class AkamaiTarget implements TargetInterface {
      * @param ResourceMetaDataInterface $metaData
      * @throws \Exception
      */
-    protected function publishFile($sourceStream, $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData) {
+    protected function publishFile($sourceStream, $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData)
+    {
         $connector = $this->getConnector($this->name, $this->options);
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($relativeTargetPathAndFilename);
 
@@ -204,7 +212,8 @@ class AkamaiTarget implements TargetInterface {
      * @param ResourceMetaDataInterface $object Resource or Storage Object
      * @return string The relative path and filename, for example "c828d0f88ce197be1aff7cc2e5e86b1244241ac6/MyPicture.jpg"
      */
-    protected function getRelativePublicationPathAndFilename(ResourceMetaDataInterface $object) {
+    protected function getRelativePublicationPathAndFilename(ResourceMetaDataInterface $object)
+    {
         if ($object->getRelativePublicationPath() !== '') {
             $pathAndFilename = $object->getRelativePublicationPath() . $object->getFilename();
         } else {
@@ -219,7 +228,8 @@ class AkamaiTarget implements TargetInterface {
      * @param string $relativePathAndFilename
      * @return string
      */
-    protected function encodeRelativePathAndFilenameForUri($relativePathAndFilename) {
+    protected function encodeRelativePathAndFilenameForUri($relativePathAndFilename)
+    {
         return implode('/', array_map('rawurlencode', explode('/', $relativePathAndFilename)));
     }
 }

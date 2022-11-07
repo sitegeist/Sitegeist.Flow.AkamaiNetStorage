@@ -35,7 +35,8 @@ final class Client
         protected ?RestrictedDirectory $restrictedDirectory = null,
         protected ?Proxy $proxy = null,
         protected ?Path $workingDirectory = null
-    ) {}
+    ) {
+    }
 
     public static function fromOptions(array $options): self
     {
@@ -116,7 +117,6 @@ final class Client
         }
 
         return $directoryListing;
-
     }
 
     public function delete(Path $path): bool
@@ -177,7 +177,6 @@ final class Client
         return Path::fromString((string) $this->cpCode)
             ->append(Path::fromString((string) $this->restrictedDirectory))
             ->append($path);
-
     }
 
     private function initialize()

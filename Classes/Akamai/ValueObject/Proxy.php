@@ -10,7 +10,8 @@ final class Proxy
     protected function __construct(
         protected ?string $http = null,
         protected ?string $https = null
-    ) {}
+    ) {
+    }
 
     public static function create(string $http = null, string $https = null): self
     {

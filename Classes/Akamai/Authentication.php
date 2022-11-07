@@ -12,7 +12,8 @@ final class Authentication
 {
     protected function __construct(
         protected Signer $signer
-    ) {}
+    ) {
+    }
 
     public static function withSigner(Signer $signer): self
     {

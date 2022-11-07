@@ -7,12 +7,12 @@ use Neos\Flow\Annotations as Flow;
 #[Flow\Proxy(false)]
 final class Path
 {
-
     const DIRECTORY_SEPARATOR = '/';
 
     protected function __construct(
         protected string $value
-    ) {}
+    ) {
+    }
 
     public static function fromString(string $value): self
     {

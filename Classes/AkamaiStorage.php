@@ -11,15 +11,14 @@ use Neos\Flow\ResourceManagement\Storage\Exception;
 use Neos\Flow\ResourceManagement\Storage\StorageObject;
 use Neos\Flow\ResourceManagement\Storage\WritableStorageInterface;
 use Neos\Flow\Utility\Environment;
-
 use Psr\Log\LoggerInterface;
 use Sitegeist\Flow\AkamaiNetStorage\Connector as Connector;
 
 /**
  * A resource storage based on Akamai NetStorage
  */
-class AkamaiStorage implements WritableStorageInterface {
-
+class AkamaiStorage implements WritableStorageInterface
+{
     use GetConnectorTrait;
 
     /**
@@ -65,7 +64,8 @@ class AkamaiStorage implements WritableStorageInterface {
      * @param array $options Options for this storage
      * @throws Exception
      */
-    public function __construct($name, array $options = array()) {
+    public function __construct($name, array $options = array())
+    {
         $this->name = $name;
         $this->options = $options;
     }
@@ -75,7 +75,8 @@ class AkamaiStorage implements WritableStorageInterface {
      *
      * @return string
      */
-    public function getName() {
+    public function getName()
+    {
         return $this->name;
     }
 
@@ -90,7 +91,8 @@ class AkamaiStorage implements WritableStorageInterface {
      * @return PersistentResource A resource object representing the imported resource
      * @throws \Neos\Flow\ResourceManagement\Storage\Exception
      */
-    public function importResource($source, $collectionName) {
+    public function importResource($source, $collectionName)
+    {
         $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Sitegeist_AkamaiNetstorage_');
 
         if (is_resource($source)) {
@@ -131,7 +133,8 @@ class AkamaiStorage implements WritableStorageInterface {
      * @throws Exception
      * @api
      */
-    public function importResourceFromContent($content, $collectionName) {
+    public function importResourceFromContent($content, $collectionName)
+    {
         $sha1Hash = sha1($content);
         $md5Hash = md5($content);
         $filename = $sha1Hash;
@@ -169,7 +172,8 @@ class AkamaiStorage implements WritableStorageInterface {
      * @return boolean TRUE if removal was successful
      * @api
      */
-    public function deleteResource(PersistentResource $resource) {
+    public function deleteResource(PersistentResource $resource)
+    {
         $connector = $this->getConnector($this->name, $this->options);
 
         try {
@@ -192,7 +196,8 @@ class AkamaiStorage implements WritableStorageInterface {
      * @return resource | boolean The resource stream or false if the stream could not be obtained
      * @api
      */
-    public function getStreamByResource(PersistentResource $resource) {
+    public function getStreamByResource(PersistentResource $resource)
+    {
         $connector = $this->getConnector($this->name, $this->options);
         try {
             return $connector->createFilesystem()->readStream($connector->getFullDirectory() . '/' . $resource->getSha1());
@@ -213,7 +218,8 @@ class AkamaiStorage implements WritableStorageInterface {
      * @throws Exception
      * @api
      */
-    public function getStreamByResourcePath($relativePath) {
+    public function getStreamByResourcePath($relativePath)
+    {
         throw new \RuntimeException('The method "getStreamByResourcePath" is not implemented by this storage driver, as it is not called from within Flow.');
     }
 
@@ -224,7 +230,8 @@ class AkamaiStorage implements WritableStorageInterface {
      * @return \Generator<StorageObject>
      * @api
      */
-    public function getObjects() {
+    public function getObjects()
+    {
         foreach ($this->resourceManager->getCollectionsByStorage($this) as $collection) {
             yield $this->getObjectsByCollection($collection);
         }
@@ -238,7 +245,8 @@ class AkamaiStorage implements WritableStorageInterface {
      * @return \Generator<\Neos\Flow\ResourceManagement\Storage\StorageObject>
      * @api
      */
-    public function getObjectsByCollection(CollectionInterface $collection) {
+    public function getObjectsByCollection(CollectionInterface $collection)
+    {
         $iterator = $this->resourceRepository->findByCollectionNameIterator($collection->getName());
         foreach ($this->resourceRepository->iterate($iterator) as $resource) {
             /** @var \Neos\Flow\ResourceManagement\PersistentResource $resource */
@@ -259,7 +267,8 @@ class AkamaiStorage implements WritableStorageInterface {
      * @param string $collectionName Name of the collection to import into
      * @return PersistentResource The imported resource
      */
-    protected function importTemporaryFile($temporaryPathAndFilename, $collectionName) {
+    protected function importTemporaryFile($temporaryPathAndFilename, $collectionName)
+    {
         $sha1Hash = sha1_file($temporaryPathAndFilename);
         $md5Hash = md5_file($temporaryPathAndFilename);
 

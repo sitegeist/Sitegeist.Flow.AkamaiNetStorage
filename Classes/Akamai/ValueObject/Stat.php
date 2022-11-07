@@ -7,7 +7,6 @@ use Neos\Flow\Annotations as Flow;
 #[Flow\Proxy(false)]
 final class Stat
 {
-
     const TYPE_DIRECTORY = 'dir';
     const TYPE_FILE = 'file';
     const TYPE_SYMLINK = 'symlink';
@@ -17,7 +16,8 @@ final class Stat
         public string $type,
         public string $name,
         public int $mtime
-    ){}
+    ) {
+    }
 
     public static function fromXml(string $xml): self
     {

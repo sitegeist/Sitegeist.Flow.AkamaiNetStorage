@@ -10,7 +10,8 @@ final class Key
     protected function __construct(
         protected string $name,
         protected string $value
-    ) {}
+    ) {
+    }
 
     public static function create(string $name, string $value): self
     {
@@ -26,6 +27,4 @@ final class Key
     {
         return $this->value;
     }
-
-
 }
