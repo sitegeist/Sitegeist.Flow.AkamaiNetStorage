@@ -2,10 +2,10 @@
 
 namespace Sitegeist\Flow\AkamaiNetStorage\Tests\Unit\Akamai\ValueObject;
 
-use Neos\Flow\Tests\UnitTestCase;
+use PHPUnit\Framework\TestCase;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Action;
 
-final class ActionTest extends UnitTestCase
+final class ActionTest extends TestCase
 {
     /**
      * @test
