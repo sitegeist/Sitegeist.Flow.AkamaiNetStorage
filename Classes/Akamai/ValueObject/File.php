@@ -11,6 +11,17 @@ final class File
     const TYPE_FILE = 'file';
     const TYPE_SYMLINK = 'symlink';
 
+    /**
+     * @param Path $path
+     * @param string $type
+     * @param string $name
+     * @param int $mtime
+     * @param int|null $files
+     * @param int|null $bytes
+     * @param int|null $size
+     * @param string|null $md5
+     * @param array<File> $children
+     */
     protected function __construct(
         public Path $path,
         public string $type,
@@ -29,6 +40,10 @@ final class File
         return new self($path, $type, $name, $mtime);
     }
 
+    /**
+     * @param array<File> $children
+     * @return $this
+     */
     public function withChildren(array $children): self
     {
         $clone = clone $this;

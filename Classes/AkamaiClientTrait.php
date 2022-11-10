@@ -17,10 +17,15 @@ trait AkamaiClientTrait
 
     /**
      * @Flow\InjectConfiguration(path="options")
-     * @var array
+     * @var array<string, mixed>
      */
     protected $connectorOptions;
 
+    /**
+     * @param string $name
+     * @param array<string, mixed> $options
+     * @return Client
+     */
     public function getClient(string $name, array $options = []): Client
     {
         $hash = md5($name . json_encode($options));
@@ -28,7 +33,8 @@ trait AkamaiClientTrait
             return $this->clientCache[$hash];
         }
 
-        $options =  Arrays::arrayMergeRecursiveOverrule($this->connectorOptions ?? [], $options);
+        /* @phpstan-ignore-next-line */
+        $options =  Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, $options);
         $this->clientCache[$hash] = Client::fromOptions($options);
         return $this->clientCache[$hash];
     }

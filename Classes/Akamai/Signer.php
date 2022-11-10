@@ -13,10 +13,17 @@ final class Signer
 {
     private int $version = 5;
     private string $reserved = '0.0.0.0';
+    private Key $key;
     private ?Path $path = null;
-    private ?Key $key = null;
     private ?\DateTimeInterface $time = null;
     private ?Action $action = null;
+
+    public static function create(Key $key): self
+    {
+        $self = new self();
+        $self->key = $key;
+        return $self;
+    }
 
     public function withPath(Path $path): self
     {
@@ -46,7 +53,10 @@ final class Signer
         return $self;
     }
 
-    public function authenticationHeaders()
+    /**
+     * @return array<string, string>
+     */
+    public function authenticationHeaders(): array
     {
         $data = implode(", ", [
             $this->version,

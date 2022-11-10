@@ -23,7 +23,11 @@ final class Stat
     {
         $data = simplexml_load_string($xml);
 
-        $path = $data['directory'];
+        if ($data === false) {
+            throw new \InvalidArgumentException('Given XML string is malformed and can not be parsed');
+        }
+
+        $path = (string) $data['directory'];
         $type = $data->file['type'];
         $name = $data->file['name'];
         $mtime = (int) $data->file['mtime'];
@@ -38,11 +42,11 @@ final class Stat
 
     public function isFile(): bool
     {
-        return $this->type = self::TYPE_FILE;
+        return $this->type === self::TYPE_FILE;
     }
 
     public function isSymlink(): bool
     {
-        return $this->type = self::TYPE_SYMLINK;
+        return $this->type === self::TYPE_SYMLINK;
     }
 }

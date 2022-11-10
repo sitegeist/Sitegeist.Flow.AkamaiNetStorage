@@ -1,0 +1,6 @@
+parameters:
+    earlyTerminatingMethodCalls:
+        Neos\Flow\Cli\CommandController:
+            - quit
+        Sitegeist\Flow\AkamaiNetStorage\Command\AkamaiCommandController:
+            - quit

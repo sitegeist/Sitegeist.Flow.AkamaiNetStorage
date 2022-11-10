@@ -12,13 +12,15 @@ use Neos\Flow\ResourceManagement\ResourceMetaDataInterface;
 use Neos\Flow\ResourceManagement\Target\TargetInterface;
 use Neos\Utility\Arrays;
 use Psr\Log\LoggerInterface;
+use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Path;
+use Sitegeist\Flow\AkamaiNetStorage\Exception\FileDoesNotExistsException;
 
 /**
  * A resource publishing target based on Akamai NetStorage
  */
 class AkamaiTarget implements TargetInterface
 {
-    use GetConnectorTrait;
+    use AkamaiClientTrait;
 
     /**
      * Name which identifies this resource target
@@ -30,7 +32,7 @@ class AkamaiTarget implements TargetInterface
     /**
      * Target options
      *
-     * @var array
+     * @var array<string, mixed>
      */
     protected $options;
 
@@ -60,15 +62,10 @@ class AkamaiTarget implements TargetInterface
     protected $resourceManager;
 
     /**
-     * @var array
-     */
-    protected $existingObjectsInfo;
-
-    /**
      * Constructor
      *
      * @param string $name Name of this target instance, according to the resource settings
-     * @param array $options Options for this target
+     * @param array<string, mixed> $options Options for this target
      * @throws Exception
      */
     public function __construct($name, array $options = array())
@@ -111,7 +108,7 @@ class AkamaiTarget implements TargetInterface
      */
     public function getPublicStaticResourceUri($relativePathAndFilename)
     {
-        return 'https://' . $this->getConnector($this->name, $this->options)->getFullStaticPath() . '/' . $this->encodeRelativePathAndFilenameForUri($relativePathAndFilename);
+        return 'https://' . $this->getClient($this->name, $this->options)->staticHost . '/' . $this->encodeRelativePathAndFilenameForUri($relativePathAndFilename);
     }
 
     /**
@@ -130,7 +127,11 @@ class AkamaiTarget implements TargetInterface
         // If we use Akamai as a target and a storage ...
         if ($storage instanceof AkamaiStorage) {
             // ... we need to make sure not to publish into the storage workingDir
-            if ($storage->getConnector()->getFullPath() === $this->getConnector($this->name, $this->options)->getFullPath()) {
+            if (
+                $storage->getFullPath()->equals(
+                    $this->getClient($this->name, $this->options)->getFullPath()
+                )
+            ) {
                 throw new Exception(sprintf('Could not publish resource with SHA1 hash %s of collection %s because publishing to the storage workDir is not allowed. Choose a different workingDir for your target.', $resource->getSha1(), $collection->getName()), 1428929563);
             };
 
@@ -143,6 +144,7 @@ class AkamaiTarget implements TargetInterface
             $this->messageCollector->append($message);
             return;
         }
+        /* @phpstan-ignore-next-line */
         $this->publishFile($sourceStream, $this->getRelativePublicationPathAndFilename($resource), $resource);
     }
 
@@ -154,13 +156,13 @@ class AkamaiTarget implements TargetInterface
      */
     public function unpublishResource(PersistentResource $resource)
     {
-        $connector = $this->getConnector($this->name, $this->options);
+        $client = $this->getClient($this->name, $this->options);
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
 
         try {
             // delete() returns boolean
-            $connector->createFilesystem()->delete($connector->getFullDirectory() . '/' . $encodedRelativeTargetPathAndFilename);
-        } catch (\League\Flysystem\FileNotFoundException $exception) {
+            $client->delete(Path::fromString($encodedRelativeTargetPathAndFilename));
+        } catch (FileDoesNotExistsException $exception) {
         }
     }
 
@@ -173,7 +175,7 @@ class AkamaiTarget implements TargetInterface
     public function getPublicPersistentResourceUri(PersistentResource $resource)
     {
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
-        return 'https://' . $this->getConnector($this->name, $this->options)->getFullStaticPath() . '/' . $encodedRelativeTargetPathAndFilename;
+        return 'https://' . $this->getClient($this->name, $this->options)->staticHost . '/' . $encodedRelativeTargetPathAndFilename;
     }
 
     /**
@@ -184,20 +186,20 @@ class AkamaiTarget implements TargetInterface
      * @param ResourceMetaDataInterface $metaData
      * @throws \Exception
      */
-    protected function publishFile($sourceStream, $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData)
+    protected function publishFile($sourceStream, $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData): void
     {
-        $connector = $this->getConnector($this->name, $this->options);
+        $client = $this->getClient($this->name, $this->options);
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($relativeTargetPathAndFilename);
 
         try {
-            $connector->createFilesystem()->write($connector->getFullDirectory() . '/' . $encodedRelativeTargetPathAndFilename, $sourceStream);
+            $client->upload(Path::fromString($encodedRelativeTargetPathAndFilename), (string) $sourceStream);
             $this->systemLogger->debug(sprintf('Successfully published resource as object "%s" with Sha1 "%s"', $relativeTargetPathAndFilename, $metaData->getSha1() ?: 'unknown'));
         } catch (\Exception $e) {
             if (is_resource($sourceStream)) {
                 fclose($sourceStream);
             }
 
-            if (!$e instanceof \League\Flysystem\FileExistsException) {
+            if (!$e instanceof FileDoesNotExistsException) {
                 $this->systemLogger->debug(sprintf('Failed publishing resource as object "%s" with Sha1 hash "%s": %s', $relativeTargetPathAndFilename, $metaData->getSha1() ?: 'unknown', $e->getMessage()));
                 throw $e;
             }

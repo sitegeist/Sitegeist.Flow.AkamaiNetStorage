@@ -18,6 +18,9 @@ final class Proxy
         return new self($http, $https);
     }
 
+    /**
+     * @return array<string, string|null>
+     */
     public function toArray(): array
     {
         return [

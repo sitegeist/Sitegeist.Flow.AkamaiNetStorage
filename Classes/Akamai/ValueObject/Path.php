@@ -29,6 +29,11 @@ final class Path
         return self::fromString((string) $path . self::DIRECTORY_SEPARATOR . (string) $this);
     }
 
+    public function equals(Path $path): bool
+    {
+        return ((string) $this === (string) $path);
+    }
+
     public static function root(): self
     {
         return new self('');

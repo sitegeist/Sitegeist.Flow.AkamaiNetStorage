@@ -20,7 +20,7 @@ final class Authentication
         return new self($signer);
     }
 
-    public function __invoke(callable $handler)
+    public function __invoke(callable $handler): \Closure
     {
         return function (
             RequestInterface $request,

@@ -17,6 +17,9 @@ final class Action
         return new self($value);
     }
 
+    /**
+     * @param array<string, string>|null $options
+     */
     public function acsActionHeader(array $options = null): string
     {
         $header = 'version=1&action=' . rawurlencode($this->value);

@@ -20,6 +20,7 @@ use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Proxy;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\RestrictedDirectory;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\StaticHost;
 use Sitegeist\Flow\AkamaiNetStorage\Exception\FileDoesNotExistsException;
+use Sitegeist\Flow\AkamaiNetStorage\FileUploadFailedException;
 
 #[Flow\Proxy(false)]
 final class Client
@@ -38,18 +39,35 @@ final class Client
     ) {
     }
 
+    /**
+     * @param array<string, string|mixed> $options
+     */
     public static function fromOptions(array $options): self
     {
-        $host = Host::fromString($options['host']);
-        $staticHost = StaticHost::fromString($options['staticHost']);
-        $key = Key::create($options['keyName'], $options['key']);
-        $cpCode = CpCode::fromString($options['cpCode']);
-        $restrictedDirectory = $options['restrictedDirectory'] ? RestrictedDirectory::fromString($options['restrictedDirectory']) : null;
-        $proxy = isset($options['proxy']) ?
-            Proxy::create($options['proxy']['http'] ?? null, $options['proxy']['https'] ?? null) :
+        /* @phpstan-ignore-next-line */
+        $host = Host::fromString((string) $options['host']);
+        /* @phpstan-ignore-next-line */
+        $staticHost = StaticHost::fromString((string) $options['staticHost']);
+        /* @phpstan-ignore-next-line */
+        $key = Key::create((string) $options['keyName'], (string) $options['key']);
+        /* @phpstan-ignore-next-line */
+        $cpCode = CpCode::fromString((string) $options['cpCode']);
+        /* @phpstan-ignore-next-line */
+        $restrictedDirectory = $options['restrictedDirectory'] ? RestrictedDirectory::fromString((string) $options['restrictedDirectory']) : null;
+        /* @phpstan-ignore-next-line */
+        $proxy = isset($options['proxy']) ? Proxy::create((string) $options['proxy']['http'] ?? null, (string) $options['proxy']['https'] ?? null) :
             null;
+        /* @phpstan-ignore-next-line */
+        $workingDirectory = $options['workingDirectory'] ? Path::fromString((string) $options['workingDirectory']) : null;
 
-        return new self($host, $staticHost, $key, $cpCode, $restrictedDirectory, $proxy);
+        return new self($host, $staticHost, $key, $cpCode, $restrictedDirectory, $proxy, $workingDirectory);
+    }
+
+    public function withWorkingDirectory(Path $path): self
+    {
+        $clone = clone $this;
+        $clone->workingDirectory = $path;
+        return $clone;
     }
 
     public function canConnect(): bool
@@ -67,6 +85,7 @@ final class Client
     {
         $this->initialize();
         try {
+            /** @phpstan-ignore-next-line */
             $response = $this->httpClient->get($this->buildUriPathFromFilePath($path), [
                 'headers' => [
                     'X-Akamai-ACS-Action' => Action::fromString('stat')->acsActionHeader()
@@ -75,15 +94,31 @@ final class Client
         } catch (\Exception $exception) {
             if ($exception->getCode() === 404) {
                 throw new FileDoesNotExistsException(
-                    sprintf('Akamai file object "%s" does not exsists', (string) $path)
+                    sprintf('Akamai file object "%s" does not exist', (string) $path)
                 );
             }
             return null;
         }
 
-        $xml = simplexml_load_string((string) $response->getBody());
+        return Stat::fromXml((string) $response->getBody());
+    }
 
-        return Stat::fromXml($xml);
+    public function upload(Path $path, string $content): ?Stat
+    {
+        $this->initialize();
+        try {
+            /** @phpstan-ignore-next-line */
+            $this->httpClient->put($this->buildUriPathFromFilePath($path), [
+                'headers' => [
+                    'X-Akamai-ACS-Action' => Action::fromString('upload')->acsActionHeader(),
+                    'body' => (string) $content
+                ]
+            ]);
+
+            return $this->stat($path);
+        } catch (\Exception $exception) {
+            throw new FileUploadFailedException();
+        }
     }
 
     public function dir(Path $path, bool $recursive = false): ?DirectoryListing
@@ -91,6 +126,7 @@ final class Client
         $this->initialize();
 
         try {
+            /** @phpstan-ignore-next-line */
             $response = $this->httpClient->get($this->buildUriPathFromFilePath($path), [
                 'headers' => [
                     'X-Akamai-ACS-Action' => Action::fromString('dir')->acsActionHeader()
@@ -107,8 +143,11 @@ final class Client
             /** @var File $file */
             foreach ($directoryListing->files as $file) {
                 if ($file->isDirectory()) {
-                    $children[] = $this->dir($file->path, true)->files;
-                    $files[] = $file->withChildren($children);
+                    $recursiveFiles = $this->dir($file->path, true);
+                    if ($recursiveFiles === null || $recursiveFiles->files === []) {
+                        continue;
+                    }
+                    $files[] = $file->withChildren($recursiveFiles->files);
                 } else {
                     $files[] = $file;
                 }
@@ -124,6 +163,7 @@ final class Client
         $this->initialize();
 
         try {
+            /** @phpstan-ignore-next-line */
             $this->httpClient->put($this->buildUriPathFromFilePath($path), [
                 'headers' => [
                     'X-Akamai-ACS-Action' => Action::fromString('delete')->acsActionHeader()
@@ -141,6 +181,7 @@ final class Client
         $this->initialize();
 
         try {
+            /** @phpstan-ignore-next-line */
             $this->httpClient->put($this->buildUriPathFromFilePath($path), [
                 'headers' => [
                     'X-Akamai-ACS-Action' => Action::fromString('rmdir')->acsActionHeader()
@@ -153,9 +194,13 @@ final class Client
         }
     }
 
+    /**
+     * @return resource
+     */
     public function stream(Path $path)
     {
-        $response = $this->httpClient->get($this->applyPathPrefix($path), [
+        /** @phpstan-ignore-next-line */
+        $response = $this->httpClient->get($this->buildUriPathFromFilePath($path), [
             'headers' => [
                 'X-Akamai-ACS-Action' => Action::fromString('download')->acsActionHeader(),
             ]
@@ -167,6 +212,13 @@ final class Client
         return $stream;
     }
 
+    public function getFullPath(): Path
+    {
+        return Path::fromString((string) $this->cpCode)
+            ->append(Path::fromString((string) $this->restrictedDirectory))
+            ->append($this->workingDirectory ?? Path::fromString(''));
+    }
+
     protected function buildUriPathFromFilePath(Path $path): string
     {
         return urlencode($this->applyPathPrefix($path));
@@ -176,10 +228,10 @@ final class Client
     {
         return Path::fromString((string) $this->cpCode)
             ->append(Path::fromString((string) $this->restrictedDirectory))
-            ->append($path);
+            ->append($this->workingDirectory ? $path->append($this->workingDirectory) : $path);
     }
 
-    private function initialize()
+    private function initialize(): void
     {
         if ($this->initialized) {
             return;
@@ -191,9 +243,8 @@ final class Client
             $options['proxy'] = $this->proxy->toArray();
         }
 
-        $signer = new Signer();
         $authenticationHandler = Authentication::withSigner(
-            $signer->withKey($this->key)
+            Signer::create($this->key)
         );
         $stack = HandlerStack::create();
         $stack->push($authenticationHandler, 'authentication-handler');

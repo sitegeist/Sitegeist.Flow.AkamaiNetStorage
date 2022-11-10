@@ -7,6 +7,10 @@ use Neos\Flow\Annotations as Flow;
 #[Flow\Proxy(false)]
 final class DirectoryListing
 {
+    /**
+     * @param Path $path
+     * @param array<File> $files
+     */
     protected function __construct(
         public Path $path,
         public array $files = []
@@ -17,7 +21,11 @@ final class DirectoryListing
     {
         $data = simplexml_load_string($xml);
 
-        $path = Path::fromString($data['directory']);
+        if ($data === false) {
+            throw new \InvalidArgumentException('Given XML string is malformed and can not be parsed');
+        }
+
+        $path = Path::fromString((string) $data['directory']);
         foreach ($data->file as $fileObject) {
             $file = File::create(
                 $path,
@@ -37,9 +45,14 @@ final class DirectoryListing
             $files[] = $file;
         }
 
-        return new self($path, $files);
+        return new self($path, $files ?? []);
     }
 
+    /**
+     * @param Path $path
+     * @param array<File> $files
+     * @return self
+     */
     public static function fromFiles(Path $path, array $files): self
     {
         return new self($path, $files);
