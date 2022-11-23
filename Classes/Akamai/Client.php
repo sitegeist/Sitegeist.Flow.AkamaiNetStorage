@@ -14,7 +14,6 @@ use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Action;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\CpCode;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Host;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Key;
-use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\MetaData;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Path;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Proxy;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\RestrictedDirectory;
