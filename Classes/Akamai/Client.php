@@ -122,7 +122,7 @@ final class Client
         }
     }
 
-    public function dir(Path $path, bool $recursive = false): ?DirectoryListing
+    public function dir(Path $path, bool $recursive = false): DirectoryListing
     {
         $this->initialize();
 
@@ -134,7 +134,7 @@ final class Client
                 ]
             ]);
         } catch (\Exception $exception) {
-            return null;
+            throw new FileDoesNotExistsException(sprintf('Path "%s" can did not return a directory listing', (string) $path));
         }
 
         $directoryListing = DirectoryListing::create($path);
@@ -145,11 +145,11 @@ final class Client
             /** @var File $file */
             foreach ($directoryListing->files as $file) {
                 if ($file->isDirectory()) {
-                    $recursiveFiles = $this->dir($file->path, true);
-                    if ($recursiveFiles === null || $recursiveFiles->files === []) {
-                        continue;
+                    try {
+                        $recursiveFiles = $this->dir($file->path, true);
+                        $files[] = $file->withChildren($recursiveFiles->files);
+                    } catch (FileDoesNotExistsException $exception) {
                     }
-                    $files[] = $file->withChildren($recursiveFiles->files);
                 } else {
                     $files[] = $file;
                 }

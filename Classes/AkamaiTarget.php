@@ -12,6 +12,7 @@ use Neos\Flow\ResourceManagement\ResourceMetaDataInterface;
 use Neos\Flow\ResourceManagement\Target\TargetInterface;
 use Neos\Utility\Arrays;
 use Psr\Log\LoggerInterface;
+use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Filename;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Path;
 use Sitegeist\Flow\AkamaiNetStorage\Exception\FileDoesNotExistsException;
 
@@ -161,7 +162,7 @@ class AkamaiTarget implements TargetInterface
 
         try {
             // delete() returns boolean
-            $client->delete(Path::fromString($encodedRelativeTargetPathAndFilename));
+            $client->delete(Path::fromString($resource->getRelativePublicationPath()), Filename::fromString($resource->getFilename()));
         } catch (FileDoesNotExistsException $exception) {
         }
     }

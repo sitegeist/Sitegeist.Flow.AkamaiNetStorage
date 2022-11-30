@@ -12,6 +12,7 @@ use Neos\Flow\ResourceManagement\Storage\Exception;
 use Neos\Flow\ResourceManagement\Storage\WritableStorageInterface;
 use Neos\Flow\Utility\Environment;
 use Psr\Log\LoggerInterface;
+use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Filename;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Path;
 use Sitegeist\Flow\AkamaiNetStorage\Exception\FileDoesNotExistsException;
 
@@ -179,7 +180,7 @@ class AkamaiStorage implements WritableStorageInterface
 
         try {
             // delete() returns boolean
-            $wasDeleted = $client->delete(Path::fromString($resource->getSha1()));
+            $wasDeleted = $client->delete($client->getFullPath(), Filename::fromString($resource->getSha1()));
         } catch (FileDoesNotExistsException $exception) {
             // In some rare cases the file might be missing in the storage but is still present in the db.
             // We need to process the corresponding exception to be able to also remove the resource from the db.

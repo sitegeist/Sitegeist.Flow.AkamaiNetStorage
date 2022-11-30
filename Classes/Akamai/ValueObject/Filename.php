@@ -7,7 +7,6 @@ use Neos\Flow\Annotations as Flow;
 #[Flow\Proxy(false)]
 final class Filename
 {
-
     protected function __construct(
         protected string $value
     ) {

@@ -89,10 +89,11 @@ class AkamaiCommandController extends CommandController
         }
 
         $client = Client::fromOptions($this->connectorOptions);
-        $directoryListing = $client->dir(Path::fromString($path));
-
-        if ($directoryListing === null) {
-            throw new \InvalidArgumentException(sprintf('The given path "%s" did not return a valid response', (string) $path));
+        try {
+            $directoryListing = $client->dir(Path::fromString($path));
+        } catch (FileDoesNotExistsException $exception) {
+            $this->outputLine('The given path "%s" did not return a valid response', [(string) $path]);
+            $this->quit(1);
         }
 
         usort($directoryListing->files, function ($a, $b) use ($orderBy) {
@@ -154,6 +155,7 @@ class AkamaiCommandController extends CommandController
         if ($metadata->isDirectory()) {
             $client->rmdir($path);
         } else {
+            /* @phpstan-ignore-next-line */
             $client->delete($path, Filename::fromString($metadata->name));
         }
     }
@@ -201,10 +203,10 @@ class AkamaiCommandController extends CommandController
 
         $options = $this->connectorOptions;
         $client = Client::fromOptions($options);
-        $directoryListing = $client->dir(Path::fromString($path));
-
-        if ($directoryListing === null) {
-            $this->outputLine('Could not resolve path "%s', [$client->getFullPath()]);
+        try {
+            $directoryListing = $client->dir(Path::fromString($path));
+        } catch (FileDoesNotExistsException $exception) {
+            $this->outputLine('Could not resolve path', [(string) $path]);
             $this->quit(1);
         }
 
@@ -244,7 +246,7 @@ class AkamaiCommandController extends CommandController
 
         foreach ($deletablePaths as $deletablePath) {
             $this->outputLine('<info>Deleting "%s"</info>', [(string) $deletablePath->fullPath()]);
-            $this->deleteCommand($path . '/' . $deletablePath['name'], $yes);
+            $this->deleteCommand($path . '/' . $deletablePath->name, $yes);
         }
     }
 
@@ -261,9 +263,9 @@ class AkamaiCommandController extends CommandController
             $this->outputLine('storage connector listing:');
             $this->outputLine('------------------------------------------------------');
 
-            $root = $storageConnector->dir(Path::root(), true);
-
-            if ($root === null) {
+            try {
+                $root = $storageConnector->dir(Path::root());
+            } catch (FileDoesNotExistsException $exception) {
                 $this->outputLine('The root directory could not be read');
                 $this->quit(1);
             }
@@ -281,9 +283,10 @@ class AkamaiCommandController extends CommandController
             $this->outputLine("target connector listing:");
             $this->outputLine('------------------------------------------------------');
 
-            $root = $targetConnector->dir(Path::root(), true);
-
-            if ($root === null) {
+            try {
+                /* @phpstan-ignore-next-line */
+                $root = $storageConnector->dir(Path::root());
+            } catch (FileDoesNotExistsException $exception) {
                 $this->outputLine('The root directory could not be read');
                 $this->quit(1);
             }
