@@ -13,11 +13,16 @@ final class DirectoryListing
      */
     protected function __construct(
         public Path $path,
-        public array $files = []
+        public array $files = [],
     ) {
     }
 
-    public static function fromXml(string $xml): self
+    public static function create(Path $path): self
+    {
+        return new self($path);
+    }
+
+    public function fromXml(string $xml): self
     {
         $data = simplexml_load_string($xml);
 
@@ -25,10 +30,10 @@ final class DirectoryListing
             throw new \InvalidArgumentException('Given XML string is malformed and can not be parsed');
         }
 
-        $path = Path::fromString((string) $data['directory']);
+        $files = [];
         foreach ($data->file as $fileObject) {
             $file = File::create(
-                $path,
+                $this->path,
                 (string) $fileObject['type'],
                 (string) $fileObject['name'],
                 (int) $fileObject['mtime']
@@ -45,7 +50,8 @@ final class DirectoryListing
             $files[] = $file;
         }
 
-        return new self($path, $files ?? []);
+        $this->files = $files;
+        return $this;
     }
 
     /**

@@ -9,6 +9,7 @@ use Neos\Flow\Annotations as Flow;
 use GuzzleHttp\Client as GuzzleClient;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\DirectoryListing;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\File;
+use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Filename;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Stat;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Action;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\CpCode;
@@ -57,7 +58,7 @@ final class Client
         $proxy = isset($options['proxy']) ? Proxy::create((string) $options['proxy']['http'] ?? null, (string) $options['proxy']['https'] ?? null) :
             null;
         /* @phpstan-ignore-next-line */
-        $workingDirectory = $options['workingDirectory'] ? Path::fromString((string) $options['workingDirectory']) : null;
+        $workingDirectory = isset($options['workingDirectory']) ? Path::fromString((string) $options['workingDirectory']) : null;
 
         return new self($host, $staticHost, $key, $cpCode, $restrictedDirectory, $proxy, $workingDirectory);
     }
@@ -83,11 +84,12 @@ final class Client
     public function stat(Path $path): ?Stat
     {
         $this->initialize();
+
         try {
             /** @phpstan-ignore-next-line */
             $response = $this->httpClient->get($this->buildUriPathFromFilePath($path), [
                 'headers' => [
-                    'X-Akamai-ACS-Action' => Action::fromString('stat')->acsActionHeader()
+                    'X-Akamai-ACS-Action' => Action::fromString('stat')->acsActionHeader(['implicit' => 'yes', 'encoding' => 'utf-8'])
                 ]
             ]);
         } catch (\Exception $exception) {
@@ -99,7 +101,7 @@ final class Client
             return null;
         }
 
-        return Stat::fromXml((string) $response->getBody());
+        return Stat::fromXml($path, (string) $response->getBody());
     }
 
     public function upload(Path $path, string $content): ?Stat
@@ -135,7 +137,8 @@ final class Client
             return null;
         }
 
-        $directoryListing = DirectoryListing::fromXml((string) $response->getBody());
+        $directoryListing = DirectoryListing::create($path);
+        $directoryListing->fromXml((string) $response->getBody());
 
         if ($recursive === true) {
             $files = [];
@@ -157,13 +160,14 @@ final class Client
         return $directoryListing;
     }
 
-    public function delete(Path $path): bool
+    public function delete(Path $path, Filename $filename): bool
     {
         $this->initialize();
+        $finalPath = $path->urlEncode()->append(Path::fromString((string) $filename));
 
         try {
             /** @phpstan-ignore-next-line */
-            $this->httpClient->put($this->buildUriPathFromFilePath($path), [
+            $this->httpClient->put($this->buildUriPathFromFilePath($finalPath), [
                 'headers' => [
                     'X-Akamai-ACS-Action' => Action::fromString('delete')->acsActionHeader()
                 ]
@@ -179,18 +183,33 @@ final class Client
     {
         $this->initialize();
 
-        try {
-            /** @phpstan-ignore-next-line */
-            $this->httpClient->put($this->buildUriPathFromFilePath($path), [
-                'headers' => [
-                    'X-Akamai-ACS-Action' => Action::fromString('rmdir')->acsActionHeader()
-                ]
-            ]);
+        $dir = $this->dir($path);
 
-            return true;
-        } catch (\Exception $exception) {
-            return false;
+        foreach ($dir->files as $file) {
+            if ($file->isFile()) {
+                $this->delete($file->path, Filename::fromString($file->name));
+            } elseif ($file->isDirectory()) {
+                $this->rmdir($file->fullPath());
+            }
         }
+
+        try {
+            if ($this->dir($path) instanceof DirectoryListing) {
+                /** @phpstan-ignore-next-line */
+                $this->httpClient->put($this->buildUriPathFromFilePath($path->urlEncode(), false), [
+                    'headers' => [
+                        'X-Akamai-ACS-Action' => Action::fromString('rmdir')->acsActionHeader()
+                    ]
+                ]);
+            }
+
+            $result = true;
+        } catch (\Exception $exception) {
+            $result = false;
+        }
+
+
+        return $result;
     }
 
     /**
@@ -218,16 +237,16 @@ final class Client
             ->append($this->workingDirectory ?? Path::fromString(''));
     }
 
-    protected function buildUriPathFromFilePath(Path $path): string
+    protected function buildUriPathFromFilePath(Path $path, bool $applyPathPrefix = true): string
     {
-        return urlencode($this->applyPathPrefix($path));
+        return $this->applyPathPrefix($path);
     }
 
     protected function applyPathPrefix(Path $path): Path
     {
         return Path::fromString((string) $this->cpCode)
             ->append(Path::fromString((string) $this->restrictedDirectory))
-            ->append($this->workingDirectory ? $path->append($this->workingDirectory) : $path);
+            ->append($this->workingDirectory ? $path->prepend($this->workingDirectory) : $path);
     }
 
     private function initialize(): void

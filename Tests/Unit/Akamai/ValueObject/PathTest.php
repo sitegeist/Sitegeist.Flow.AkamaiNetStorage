@@ -33,7 +33,5 @@ final class PathTest extends TestCase
 
         self::assertEquals('path/with/folder/file.pdf', (string) $path->append(Path::fromString('file.pdf')));
         self::assertEquals('path/with/folder/deeper/file.pdf', (string) $path->append(Path::fromString('deeper/file.pdf')));
-
-
     }
 }

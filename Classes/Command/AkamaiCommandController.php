@@ -9,6 +9,7 @@ use Neos\Flow\ResourceManagement\ResourceRepository;
 use Neos\Utility\Arrays;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\Client;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\File;
+use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Filename;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Path;
 use Sitegeist\Flow\AkamaiNetStorage\AkamaiClientTrait;
 use Sitegeist\Flow\AkamaiNetStorage\AkamaiStorage;
@@ -115,6 +116,12 @@ class AkamaiCommandController extends CommandController
         $this->output->outputTable($rows, $headers, $path);
     }
 
+    public function deleteDirectoryCommand(string $path, bool $yes = false): void
+    {
+        $client = Client::fromOptions($this->connectorOptions);
+        $path = Path::fromString($path);
+    }
+
     /**
      * @param string $path
      * @param bool $yes
@@ -147,7 +154,7 @@ class AkamaiCommandController extends CommandController
         if ($metadata->isDirectory()) {
             $client->rmdir($path);
         } else {
-            $client->delete($path);
+            $client->delete($path, Filename::fromString($metadata->name));
         }
     }
 
@@ -192,12 +199,12 @@ class AkamaiCommandController extends CommandController
             $this->quit(1);
         }
 
-        $options = $path ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $path]) : $this->connectorOptions;
+        $options = $this->connectorOptions;
         $client = Client::fromOptions($options);
         $directoryListing = $client->dir(Path::fromString($path));
 
         if ($directoryListing === null) {
-            $this->outputLine('Could not resolve path "%s', [$path]);
+            $this->outputLine('Could not resolve path "%s', [$client->getFullPath()]);
             $this->quit(1);
         }
 
@@ -212,7 +219,7 @@ class AkamaiCommandController extends CommandController
         $deletablePaths = array_slice($files, $keep);
 
         if ($yes === false) {
-            $this->outputLine('The following content will be deleted');
+            $this->outputLine('<error>The following content will be deleted</error>');
             $headers = ['name', 'path', 'type', 'mtime'];
             $rows = [];
             /** @var File $deletablePath */
@@ -237,7 +244,7 @@ class AkamaiCommandController extends CommandController
 
         foreach ($deletablePaths as $deletablePath) {
             $this->outputLine('<info>Deleting "%s"</info>', [(string) $deletablePath->fullPath()]);
-            #$this->deleteCommand($path . '/' . $deletablePath['name'], $yes);
+            $this->deleteCommand($path . '/' . $deletablePath['name'], $yes);
         }
     }
 
@@ -328,7 +335,7 @@ class AkamaiCommandController extends CommandController
             $this->outputLine('');
             $this->outputLine('removing files for storage connector');
             $this->outputLine('------------------------------------------------------');
-            $storageClient->delete($storageClient->getFullPath());
+            $storageClient->rmdir($storageClient->getFullPath());
         } else {
             $this->outputLine('');
             $this->outputLine('No akamai connector found for storage in collection ' . $collectionName);
@@ -339,7 +346,7 @@ class AkamaiCommandController extends CommandController
             $this->outputLine('');
             $this->outputLine('removing files for target connector');
             $this->outputLine('------------------------------------------------------');
-            $targetClient->delete($targetClient->getFullPath());
+            $targetClient->rmdir($targetClient->getFullPath());
         } else {
             $this->outputLine('');
             $this->outputLine('No akamai connector found for target in collection ' . $collectionName);

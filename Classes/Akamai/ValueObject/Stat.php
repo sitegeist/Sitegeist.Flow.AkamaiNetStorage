@@ -12,14 +12,14 @@ final class Stat
     const TYPE_SYMLINK = 'symlink';
 
     protected function __construct(
-        public string $path,
+        public Path $path,
         public string $type,
         public string $name,
         public int $mtime
     ) {
     }
 
-    public static function fromXml(string $xml): self
+    public static function fromXml(Path $path, string $xml): self
     {
         $data = simplexml_load_string($xml);
 
@@ -27,7 +27,6 @@ final class Stat
             throw new \InvalidArgumentException('Given XML string is malformed and can not be parsed');
         }
 
-        $path = (string) $data['directory'];
         $type = $data->file['type'];
         $name = $data->file['name'];
         $mtime = (int) $data->file['mtime'];
