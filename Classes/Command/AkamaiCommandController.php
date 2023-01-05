@@ -111,16 +111,10 @@ class AkamaiCommandController extends CommandController
                 $file->name,
                 $file->path,
                 $file->type,
-                (\DateTime::createFromFormat('U', (string) $file->mtime))?->format(\DateTimeInterface::ISO8601) /* @phpstan-ignore-line */
+                (\DateTime::createFromFormat('U', (string) $file->mtime))?->format(\DateTimeInterface::ATOM) /* @phpstan-ignore-line */
             ];
         }
         $this->output->outputTable($rows, $headers, $path);
-    }
-
-    public function deleteDirectoryCommand(string $path, bool $yes = false): void
-    {
-        $client = Client::fromOptions($this->connectorOptions);
-        $path = Path::fromString($path);
     }
 
     /**
@@ -230,7 +224,7 @@ class AkamaiCommandController extends CommandController
                     $deletablePath->name,
                     $deletablePath->fullPath(),
                     $deletablePath->type,
-                    (\DateTime::createFromFormat('U', (string) $deletablePath->mtime))->format(\DateTimeInterface::ISO8601) /* @phpstan-ignore-line */
+                    (\DateTime::createFromFormat('U', (string) $deletablePath->mtime))->format(\DateTimeInterface::ATOM) /* @phpstan-ignore-line */
 
                 ];
             }

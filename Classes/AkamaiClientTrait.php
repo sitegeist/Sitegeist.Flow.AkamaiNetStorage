@@ -6,6 +6,7 @@ namespace Sitegeist\Flow\AkamaiNetStorage;
 
 use Neos\Flow\Annotations as Flow;
 use Neos\Utility\Arrays;
+use Psr\Log\LoggerInterface;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\Client;
 
 trait AkamaiClientTrait
@@ -22,6 +23,11 @@ trait AkamaiClientTrait
     protected $connectorOptions;
 
     /**
+     * @var LoggerInterface|null
+     */
+    protected $systemLogger;
+
+    /**
      * @param string $name
      * @param array<string, mixed> $options
      * @return Client
@@ -35,7 +41,7 @@ trait AkamaiClientTrait
 
         /* @phpstan-ignore-next-line */
         $options =  Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, $options);
-        $this->clientCache[$hash] = Client::fromOptions($options);
+        $this->clientCache[$hash] = Client::fromOptions($options, $this->systemLogger);
         return $this->clientCache[$hash];
     }
 }

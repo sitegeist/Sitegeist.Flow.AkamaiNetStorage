@@ -204,8 +204,7 @@ class AkamaiStorage implements WritableStorageInterface
         try {
             return $client->stream(Path::fromString($resource->getSha1()));
         } catch (\Exception $e) {
-            $message = sprintf('Could not retrieve stream for resource %s', $resource->getSha1());
-            $this->systemLogger->error($message, ['exception' => $e]);
+            $this->systemLogger->error(sprintf('Could not retrieve stream for resource %s', $resource->getSha1()));
             return false;
         }
     }

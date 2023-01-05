@@ -1,6 +1,6 @@
 <?php
 
-namespace Sitegeist\Flow\AkamaiNetStorage;
+namespace Sitegeist\Flow\AkamaiNetStorage\Exception;
 
 use Neos\Flow\Exception;
 

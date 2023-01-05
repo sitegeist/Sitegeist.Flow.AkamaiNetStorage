@@ -9,6 +9,7 @@ use Neos\Flow\ResourceManagement\Publishing\MessageCollector;
 use Neos\Flow\ResourceManagement\PersistentResource;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceMetaDataInterface;
+use Neos\Flow\ResourceManagement\Storage\StorageObject;
 use Neos\Flow\ResourceManagement\Target\TargetInterface;
 use Neos\Utility\Arrays;
 use Psr\Log\LoggerInterface;
@@ -95,9 +96,21 @@ class AkamaiTarget implements TargetInterface
      */
     public function publishCollection(CollectionInterface $collection, callable $callback = null)
     {
+
         foreach ($collection->getObjects() as $object) {
+            $path = $this->getRelativePublicationPathAndFilename($object);
+            /**
+             * @var resource|false $sourceStream
+             */
+            $sourceStream = $object->getStream();
+            if ($sourceStream === false) {
+                $message = sprintf('Could not publish resource with path %s of collection %s because there seems to be no corresponding data in the storage.', $path, $collection->getName());
+                $this->messageCollector->append($message);
+                continue;
+            }
+
             /** @var \Neos\Flow\ResourceManagement\Storage\StorageObject $object */
-            $this->publishFile($object->getStream(), $this->getRelativePublicationPathAndFilename($object), $object);
+            $this->publishFile($sourceStream, $path, $object);
         }
     }
 
@@ -109,7 +122,9 @@ class AkamaiTarget implements TargetInterface
      */
     public function getPublicStaticResourceUri($relativePathAndFilename)
     {
-        return 'https://' . $this->getClient($this->name, $this->options)->staticHost . '/' . $this->encodeRelativePathAndFilenameForUri($relativePathAndFilename);
+        $client = $this->getClient($this->name, $this->options);
+        $path = Path::fromString($this->encodeRelativePathAndFilenameForUri($relativePathAndFilename));
+        return 'https://' . $client->staticHost . '/' . $client->buildPublicUriPath($path);
     }
 
     /**
@@ -176,7 +191,9 @@ class AkamaiTarget implements TargetInterface
     public function getPublicPersistentResourceUri(PersistentResource $resource)
     {
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
-        return 'https://' . $this->getClient($this->name, $this->options)->staticHost . '/' . $encodedRelativeTargetPathAndFilename;
+        $client = $this->getClient($this->name, $this->options);
+        $path = Path::fromString($encodedRelativeTargetPathAndFilename);
+        return 'https://' . $client->staticHost . '/' . $client->buildPublicUriPath($path);
     }
 
     /**
@@ -193,7 +210,11 @@ class AkamaiTarget implements TargetInterface
         $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($relativeTargetPathAndFilename);
 
         try {
-            $client->upload(Path::fromString($encodedRelativeTargetPathAndFilename), (string) $sourceStream);
+            $content = stream_get_contents($sourceStream);
+            if ($content === false) {
+                throw new FileDoesNotExistsException();
+            }
+            $client->upload(Path::fromString($encodedRelativeTargetPathAndFilename), $content);
             $this->systemLogger->debug(sprintf('Successfully published resource as object "%s" with Sha1 "%s"', $relativeTargetPathAndFilename, $metaData->getSha1() ?: 'unknown'));
         } catch (\Exception $e) {
             if (is_resource($sourceStream)) {

@@ -7,6 +7,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\StreamWrapper;
 use Neos\Flow\Annotations as Flow;
 use GuzzleHttp\Client as GuzzleClient;
+use Psr\Log\LoggerInterface;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\DirectoryListing;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\File;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Filename;
@@ -20,7 +21,7 @@ use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Proxy;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\RestrictedDirectory;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\StaticHost;
 use Sitegeist\Flow\AkamaiNetStorage\Exception\FileDoesNotExistsException;
-use Sitegeist\Flow\AkamaiNetStorage\FileUploadFailedException;
+use Sitegeist\Flow\AkamaiNetStorage\Exception\FileUploadFailedException;
 
 #[Flow\Proxy(false)]
 final class Client
@@ -35,14 +36,15 @@ final class Client
         protected CpCode $cpCode,
         protected ?RestrictedDirectory $restrictedDirectory = null,
         protected ?Proxy $proxy = null,
-        protected ?Path $workingDirectory = null
+        protected ?Path $workingDirectory = null,
+        protected ?LoggerInterface $logger
     ) {
     }
 
     /**
      * @param array<string, string|mixed> $options
      */
-    public static function fromOptions(array $options): self
+    public static function fromOptions(array $options, LoggerInterface $logger = null): self
     {
         /* @phpstan-ignore-next-line */
         $host = Host::fromString((string) $options['host']);
@@ -59,8 +61,7 @@ final class Client
             null;
         /* @phpstan-ignore-next-line */
         $workingDirectory = isset($options['workingDirectory']) ? Path::fromString((string) $options['workingDirectory']) : null;
-
-        return new self($host, $staticHost, $key, $cpCode, $restrictedDirectory, $proxy, $workingDirectory);
+        return new self($host, $staticHost, $key, $cpCode, $restrictedDirectory, $proxy, $workingDirectory, $logger);
     }
 
     public function withWorkingDirectory(Path $path): self
@@ -100,7 +101,6 @@ final class Client
             }
             return null;
         }
-
         return Stat::fromXml($path, (string) $response->getBody());
     }
 
@@ -109,13 +109,16 @@ final class Client
         $this->initialize();
         try {
             /** @phpstan-ignore-next-line */
-            $this->httpClient->put($this->buildUriPathFromFilePath($path), [
-                'headers' => [
-                    'X-Akamai-ACS-Action' => Action::fromString('upload')->acsActionHeader(),
+            $this->httpClient->put(
+                $this->buildUriPathFromFilePath($path),
+                [
+                    'headers' => [
+                        'X-Akamai-ACS-Action' => Action::fromString('upload')->acsActionHeader(),
+                        'Content-Length' => strlen($content)
+                    ],
                     'body' => (string) $content
                 ]
-            ]);
-
+            );
             return $this->stat($path);
         } catch (\Exception $exception) {
             throw new FileUploadFailedException();
@@ -217,6 +220,7 @@ final class Client
      */
     public function stream(Path $path)
     {
+        $this->initialize();
         /** @phpstan-ignore-next-line */
         $response = $this->httpClient->get($this->buildUriPathFromFilePath($path), [
             'headers' => [
@@ -246,6 +250,12 @@ final class Client
     {
         return Path::fromString((string) $this->cpCode)
             ->append(Path::fromString((string) $this->restrictedDirectory))
+            ->append($this->workingDirectory ? $path->prepend($this->workingDirectory) : $path);
+    }
+
+    public function buildPublicUriPath(Path $path): Path
+    {
+        return Path::fromString((string) $this->restrictedDirectory)
             ->append($this->workingDirectory ? $path->prepend($this->workingDirectory) : $path);
     }
 
