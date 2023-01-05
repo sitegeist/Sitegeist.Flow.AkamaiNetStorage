@@ -2,25 +2,29 @@
 
 namespace Sitegeist\Flow\AkamaiNetStorage\Command;
 
-use League\Flysystem\FileNotFoundException;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
-
-use Neos\Flow\Core\Booting\Scripts;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceRepository;
-
 use Neos\Utility\Arrays;
+use Sitegeist\Flow\AkamaiNetStorage\Akamai\Client;
+use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\File;
+use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Filename;
+use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Path;
+use Sitegeist\Flow\AkamaiNetStorage\AkamaiClientTrait;
 use Sitegeist\Flow\AkamaiNetStorage\AkamaiStorage;
 use Sitegeist\Flow\AkamaiNetStorage\AkamaiTarget;
-use Sitegeist\Flow\AkamaiNetStorage\Connector;
+use Sitegeist\Flow\AkamaiNetStorage\Exception\FileDoesNotExistsException;
 
 /**
  * Akamai NetStorage command controller
  *
  * @Flow\Scope("singleton")
  */
-class AkamaiCommandController extends CommandController {
+class AkamaiCommandController extends CommandController
+{
+    use AkamaiClientTrait;
+
     /**
      * @var ResourceManager
      */
@@ -33,37 +37,39 @@ class AkamaiCommandController extends CommandController {
 
     /**
      * @Flow\InjectConfiguration(package="Neos.Flow")
-     * @var array
+     * @var array<string, mixed>
      */
     protected $settings;
 
     /**
      * @Flow\InjectConfiguration(path="options")
-     * @var array
+     * @var array<string, mixed>
      */
     protected $connectorOptions;
 
-    function __construct() {
+    public function __construct()
+    {
         parent::__construct();
-        $this->resourceManager = new ResourceManager;
-        $this->resourceRepository = new ResourceRepository;
+        $this->resourceManager = new ResourceManager();
+        $this->resourceRepository = new ResourceRepository();
     }
 
     /**
      * @param string $collectionName
      */
-    public function connectCommand($collectionName) {
-        $storageConnector = $this->getAkamaiStorageConnectorByCollectionName($collectionName);
-        $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
+    public function connectCommand($collectionName): void
+    {
+        $storageClient = $this->getAkamaiStorageClientByCollectionName($collectionName);
+        $targetClient = $this->getAkamaiTargetClientByCollectionName($collectionName);
 
-        if ($storageConnector) {
-            $this->outputLine('storage connection is working: ' . ($storageConnector->testConnection() ? 'yes ;)' : 'no'));
+        if ($storageClient) {
+            $this->outputLine('storage connection is working: ' . ($storageClient->canConnect() ? 'yes ;)' : 'no'));
         } else {
             $this->outputLine("No akamai connector found for storage in collection " . $collectionName . "\n");
         }
 
-        if ($targetConnector) {
-            $this->outputLine('target connection is working: ' . ($targetConnector->testConnection() ? 'yes ;)' : 'no'));
+        if ($targetClient) {
+            $this->outputLine('target connection is working: ' . ($targetClient->canConnect() ? 'yes ;)' : 'no'));
         } else {
             $this->outputLine("No akamai connector found for target in collection " . $collectionName . "\n");
         }
@@ -75,28 +81,38 @@ class AkamaiCommandController extends CommandController {
      * @return void
      * @throws \Neos\Flow\Cli\Exception\StopCommandException
      */
-    public function listCommand(string $orderBy = 'name', string $path = '/')
+    public function listCommand(string $orderBy = 'name', string $path = '/'): void
     {
         if (in_array($orderBy, ['name', 'mtime']) === false) {
-            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given',  [$orderBy]);
+            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given', [$orderBy]);
             $this->quit(1);
         }
 
-        $options = $path ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $path]) : $this->connectorOptions;
-        $connector = new Connector($options, 'cli');
-        $contentList = $connector->getContentList(false);
+        $client = Client::fromOptions($this->connectorOptions);
+        try {
+            $directoryListing = $client->dir(Path::fromString($path));
+        } catch (FileDoesNotExistsException $exception) {
+            $this->outputLine('The given path "%s" did not return a valid response', [(string) $path]);
+            $this->quit(1);
+        }
 
-        usort($contentList, function($a, $b) use ($orderBy) {
-            if ($a[$orderBy] == $b[$orderBy]) {
+        usort($directoryListing->files, function ($a, $b) use ($orderBy) {
+            if ($a->$orderBy == $b->$orderBy) {
                 return 0;
             }
-            return ($a[$orderBy] < $b[$orderBy]) ? 1 : -1;
+            return ($a->$orderBy < $b->$orderBy) ? 1 : -1;
         });
 
         $headers = ['name', 'path', 'type', 'mtime'];
         $rows = [];
-        foreach ($contentList as $content) {
-            $rows[] = [$content['name'], $content['path'], $content['type'], (\DateTime::createFromFormat('U', $content['timestamp']))->format(\DateTimeInterface::ISO8601)];
+        /** @var File $file */
+        foreach ($directoryListing->files as $file) {
+            $rows[] = [
+                $file->name,
+                $file->path,
+                $file->type,
+                (\DateTime::createFromFormat('U', (string) $file->mtime))?->format(\DateTimeInterface::ATOM) /* @phpstan-ignore-line */
+            ];
         }
         $this->output->outputTable($rows, $headers, $path);
     }
@@ -105,29 +121,36 @@ class AkamaiCommandController extends CommandController {
      * @param string $path
      * @param bool $yes
      * @return void
-     * @throws FileNotFoundException
+     * @throws FileDoesNotExistsException
      * @throws \Neos\Flow\Cli\Exception\StopCommandException
      */
-    public function deleteCommand(string $path, bool $yes = false)
+    public function deleteCommand(string $path, bool $yes = false): void
     {
-        $connector = new Connector($this->connectorOptions, 'cli');
-        $fullPath = ($connector->getRestrictedDirectory() === '') ? $path : $connector->getRestrictedDirectory() . '/' . $path;
+        $client = Client::fromOptions($this->connectorOptions);
+        $path = Path::fromString($path);
 
         if ($yes === false) {
-            $yes = $this->output->askConfirmation(sprintf('This will delete "%s". Type "yes" to continue' . PHP_EOL, $fullPath), false);
+            $yes = $this->output->askConfirmation(sprintf('This will delete "%s". Type "yes" to continue' . PHP_EOL, $path), false);
 
             if ($yes === false) {
                 $this->outputLine('Deletion cancelled');
                 $this->quit(1);
             }
         }
-        $metadata = $connector->createFilesystem()->getMetadata($connector->getFullDirectory() . '/' . $path);
 
-        if ($metadata['type'] === 'dir') {
-            $connector->createFilesystem()->deleteDir($connector->getFullDirectory() . '/' . $path);
-            $connector->createFilesystem()->delete($connector->getFullDirectory() . '/' . $path);
+        try {
+            $metadata = $client->stat($path);
+        } catch (FileDoesNotExistsException $exception) {
+            $this->outputLine('The Akamai path "%s" does not exists', [$path]);
+            $this->quit(1);
+        }
+
+        /* @phpstan-ignore-next-line */
+        if ($metadata->isDirectory()) {
+            $client->rmdir($path);
         } else {
-            $connector->createFilesystem()->delete($connector->getFullDirectory() . '/' . $path);
+            /* @phpstan-ignore-next-line */
+            $client->delete($path, Filename::fromString($metadata->name));
         }
     }
 
@@ -136,23 +159,24 @@ class AkamaiCommandController extends CommandController {
      * @return void
      * @throws \Neos\Flow\Cli\Exception\StopCommandException
      */
-    public function metadataCommand(string $path)
+    public function metadataCommand(string $path): void
     {
-        $connector = new Connector($this->connectorOptions, 'cli');
+        $client = Client::fromOptions($this->connectorOptions);
         try {
-            $metadata = $connector->createFilesystem()->getMetadata($connector->getFullDirectory() . '/' . $path);
-
-            $headers = ['key', 'value'];
-            $rows = [];
-            foreach ($metadata as $key => $value) {
-                $rows[] = [$key, $value];
-            }
-            $this->output->outputTable($rows, $headers, $path);
-
-        } catch (FileNotFoundException $exception) {
+            $metadata = $client->stat(Path::fromString($path));
+        } catch (FileDoesNotExistsException $exception) {
             $this->outputLine('Path "%s" was not found', [$path]);
             $this->quit(1);
         }
+
+
+        $headers = ['key', 'value'];
+        $rows = [];
+        /* @phpstan-ignore-next-line */
+        foreach (get_object_vars($metadata) as $key => $value) {
+            $rows[] = [$key, $value];
+        }
+        $this->output->outputTable($rows, $headers, $path);
     }
 
     /**
@@ -164,33 +188,47 @@ class AkamaiCommandController extends CommandController {
      * @throws \Neos\Flow\Cli\Exception\StopCommandException
      * @throws \Neos\Flow\Core\Booting\Exception\SubProcessException
      */
-    public function cleanupCommand(string $orderBy, string $path = '/', int $keep = 10, bool $yes = false) {
+    public function cleanupCommand(string $orderBy, string $path = '/', int $keep = 10, bool $yes = false): void
+    {
         if (in_array($orderBy, ['name', 'mtime']) === false) {
-            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given',  [$orderBy]);
+            $this->outputLine('--order-by must be either "name" or "mtime". "%s" was given', [$orderBy]);
             $this->quit(1);
         }
 
-        $options = $path ? Arrays::arrayMergeRecursiveOverrule($this->connectorOptions, ['workingDirectory' => $path]) : $this->connectorOptions;
-        $connector = new Connector($options, 'cli');
-        $contentList = $connector->getContentList(false);
+        $options = $this->connectorOptions;
+        $client = Client::fromOptions($options);
+        try {
+            $directoryListing = $client->dir(Path::fromString($path));
+        } catch (FileDoesNotExistsException $exception) {
+            $this->outputLine('Could not resolve path', [(string) $path]);
+            $this->quit(1);
+        }
 
-        usort($contentList, function($a, $b) use ($orderBy) {
-            if ($a[$orderBy] == $b[$orderBy]) {
+        $files = $directoryListing->files;
+        usort($files, function ($a, $b) use ($orderBy) {
+            if ($a->$orderBy == $b->$orderBy) {
                 return 0;
             }
-            return ($a[$orderBy] < $b[$orderBy]) ? 1 : -1;
+            return ($a->$orderBy < $b->$orderBy) ? 1 : -1;
         });
 
-        $deletablePaths = array_slice($contentList, $keep);
+        $deletablePaths = array_slice($files, $keep);
 
         if ($yes === false) {
-            $this->outputLine('The following content will be deleted');
+            $this->outputLine('<error>The following content will be deleted</error>');
             $headers = ['name', 'path', 'type', 'mtime'];
             $rows = [];
+            /** @var File $deletablePath */
             foreach ($deletablePaths as $deletablePath) {
-                $rows[] = [$deletablePath['name'], $deletablePath['path'], $deletablePath['type'], (\DateTime::createFromFormat('U', $deletablePath['timestamp']))->format(\DateTimeInterface::ISO8601)];
+                $rows[] = [
+                    $deletablePath->name,
+                    $deletablePath->fullPath(),
+                    $deletablePath->type,
+                    (\DateTime::createFromFormat('U', (string) $deletablePath->mtime))->format(\DateTimeInterface::ATOM) /* @phpstan-ignore-line */
+
+                ];
             }
-            $this->output->outputTable($rows, $headers, $connector->getFullDirectory());
+            $this->output->outputTable($rows, $headers, $path);
 
             $yes = $this->output->askConfirmation(sprintf('To cleanup the path "%s", you must type "yes"' . PHP_EOL, $path), false);
 
@@ -201,25 +239,34 @@ class AkamaiCommandController extends CommandController {
         }
 
         foreach ($deletablePaths as $deletablePath) {
-            $this->outputLine('<info>Deleting "%s"</info>', [$deletablePath['path']]);
-            $this->deleteCommand($path . '/' . $deletablePath['name'], $yes);
+            $this->outputLine('<info>Deleting "%s"</info>', [(string) $deletablePath->fullPath()]);
+            $this->deleteCommand($path . '/' . $deletablePath->name, $yes);
         }
     }
 
     /**
      * @param string $collectionName
      */
-    public function listCollectionCommand($collectionName) {
-        $storageConnector = $this->getAkamaiStorageConnectorByCollectionName($collectionName);
-        $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
+    public function listCollectionCommand($collectionName): void
+    {
+        $storageConnector = $this->getAkamaiStorageClientByCollectionName($collectionName);
+        $targetConnector = $this->getAkamaiTargetClientByCollectionName($collectionName);
 
         if ($storageConnector) {
             $this->outputLine('');
             $this->outputLine('storage connector listing:');
             $this->outputLine('------------------------------------------------------');
 
-            foreach ($storageConnector->collectAllPaths() as $path) {
-                $this->outputLine($path);
+            try {
+                $root = $storageConnector->dir(Path::root());
+            } catch (FileDoesNotExistsException $exception) {
+                $this->outputLine('The root directory could not be read');
+                $this->quit(1);
+            }
+
+            /** @var File $file */
+            foreach ($root->files as $file) {
+                $this->outputLine($file->fullPath());
             }
         } else {
             echo "No akamai connector found for storage in collection " . $collectionName . "\n";
@@ -230,39 +277,41 @@ class AkamaiCommandController extends CommandController {
             $this->outputLine("target connector listing:");
             $this->outputLine('------------------------------------------------------');
 
-            foreach ($targetConnector->collectAllPaths() as $path) {
-                $this->outputLine($path);
+            try {
+                /* @phpstan-ignore-next-line */
+                $root = $storageConnector->dir(Path::root());
+            } catch (FileDoesNotExistsException $exception) {
+                $this->outputLine('The root directory could not be read');
+                $this->quit(1);
+            }
+
+            foreach ($root->files as $file) {
+                $this->outputLine($file->fullPath());
             }
         } else {
             echo "No akamai connector found for target in collection " . $collectionName . "\n";
         }
     }
 
-    /**
-     * @param string $collectionName
-     * @return Connector | null
-     */
-    private function getAkamaiStorageConnectorByCollectionName($collectionName) {
+    private function getAkamaiStorageClientByCollectionName(string $collectionName): ?Client
+    {
         $collection = $this->resourceManager->getCollection($collectionName);
         $storage = $collection->getStorage();
 
         if ($storage instanceof AkamaiStorage) {
-            return $storage->getConnector();
+            return $storage->getClient($collectionName);
         } else {
             return null;
         }
     }
 
-    /**
-     * @param string $collectionName
-     * @return Connector | null
-     */
-    private function getAkamaiTargetConnectorByCollectionName($collectionName) {
+    private function getAkamaiTargetClientByCollectionName(string $collectionName): ?Client
+    {
         $collection = $this->resourceManager->getCollection($collectionName);
         $target = $collection->getTarget();
 
         if ($target instanceof AkamaiTarget) {
-            return $target->getConnector();
+            return $target->getClient($collectionName);
         } else {
             return null;
         }
@@ -274,26 +323,27 @@ class AkamaiCommandController extends CommandController {
      * @param string $collectionName
      * @param string $areYouSure
      */
-    public function nukeCollectionCommand($collectionName, $areYouSure) {
-        $storageConnector = $this->getAkamaiStorageConnectorByCollectionName($collectionName);
-        $targetConnector = $this->getAkamaiTargetConnectorByCollectionName($collectionName);
+    public function nukeCollectionCommand($collectionName, $areYouSure): void
+    {
+        $storageClient = $this->getAkamaiStorageClientByCollectionName($collectionName);
+        $targetClient = $this->getAkamaiTargetClientByCollectionName($collectionName);
 
-        if ($storageConnector && $areYouSure) {
+        if ($storageClient && $areYouSure) {
             $this->outputLine('');
             $this->outputLine('removing files for storage connector');
             $this->outputLine('------------------------------------------------------');
-            $storageConnector->removeAllFiles();
+            $storageClient->rmdir($storageClient->getFullPath());
         } else {
             $this->outputLine('');
             $this->outputLine('No akamai connector found for storage in collection ' . $collectionName);
             $this->outputLine('------------------------------------------------------');
         }
 
-        if ($targetConnector && $areYouSure) {
+        if ($targetClient && $areYouSure) {
             $this->outputLine('');
             $this->outputLine('removing files for target connector');
             $this->outputLine('------------------------------------------------------');
-            $targetConnector->removeAllFiles();
+            $targetClient->rmdir($targetClient->getFullPath());
         } else {
             $this->outputLine('');
             $this->outputLine('No akamai connector found for target in collection ' . $collectionName);

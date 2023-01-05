@@ -3,24 +3,25 @@
 namespace Sitegeist\Flow\AkamaiNetStorage;
 
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\ResourceManagement\Storage\Exception as StorageException;
 use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\PersistentResource;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceRepository;
 use Neos\Flow\ResourceManagement\Storage\Exception;
-use Neos\Flow\ResourceManagement\Storage\StorageObject;
 use Neos\Flow\ResourceManagement\Storage\WritableStorageInterface;
 use Neos\Flow\Utility\Environment;
-
 use Psr\Log\LoggerInterface;
-use Sitegeist\Flow\AkamaiNetStorage\Connector as Connector;
+use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Filename;
+use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Path;
+use Sitegeist\Flow\AkamaiNetStorage\Exception\FileDoesNotExistsException;
 
 /**
  * A resource storage based on Akamai NetStorage
  */
-class AkamaiStorage implements WritableStorageInterface {
-
-    use GetConnectorTrait;
+class AkamaiStorage implements WritableStorageInterface
+{
+    use AkamaiClientTrait;
 
     /**
      * Name which identifies this resource storage
@@ -30,7 +31,7 @@ class AkamaiStorage implements WritableStorageInterface {
     protected $name;
 
     /**
-     * @var array
+     * @var array<string, mixed>
      */
     protected $options;
 
@@ -62,10 +63,11 @@ class AkamaiStorage implements WritableStorageInterface {
      * Constructor
      *
      * @param string $name Name of this storage instance, according to the resource settings
-     * @param array $options Options for this storage
+     * @param array<string, mixed> $options Options for this storage
      * @throws Exception
      */
-    public function __construct($name, array $options = array()) {
+    public function __construct($name, array $options = array())
+    {
         $this->name = $name;
         $this->options = $options;
     }
@@ -75,7 +77,8 @@ class AkamaiStorage implements WritableStorageInterface {
      *
      * @return string
      */
-    public function getName() {
+    public function getName()
+    {
         return $this->name;
     }
 
@@ -90,12 +93,16 @@ class AkamaiStorage implements WritableStorageInterface {
      * @return PersistentResource A resource object representing the imported resource
      * @throws \Neos\Flow\ResourceManagement\Storage\Exception
      */
-    public function importResource($source, $collectionName) {
+    public function importResource($source, $collectionName)
+    {
         $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Sitegeist_AkamaiNetstorage_');
 
         if (is_resource($source)) {
             try {
                 $target = fopen($temporaryTargetPathAndFilename, 'wb');
+                if ($target === false) {
+                    throw new StorageException(sprintf('The target path "%s" is not writable', $temporaryTargetPathAndFilename));
+                }
                 stream_copy_to_stream($source, $target);
                 fclose($target);
             } catch (\Exception $e) {
@@ -131,9 +138,9 @@ class AkamaiStorage implements WritableStorageInterface {
      * @throws Exception
      * @api
      */
-    public function importResourceFromContent($content, $collectionName) {
+    public function importResourceFromContent($content, $collectionName)
+    {
         $sha1Hash = sha1($content);
-        $md5Hash = md5($content);
         $filename = $sha1Hash;
 
         $resource = new PersistentResource();
@@ -141,22 +148,20 @@ class AkamaiStorage implements WritableStorageInterface {
         $resource->setFileSize(strlen($content));
         $resource->setCollectionName($collectionName);
         $resource->setSha1($sha1Hash);
-        $resource->setMd5($md5Hash);
 
+        $client = $this->getClient($this->name, $this->options);
         try {
             // first checking if a resource exists, assuming it does
-            $connector = $this->getConnector($this->name, $this->options);
-            $connector->createFilesystem()->getMetadata($connector->getFullDirectory() . '/' . $sha1Hash);
+            $client->stat(Path::fromString($sha1Hash));
             $resourceAlreadyExists = true;
-        } catch (\League\Flysystem\FileNotFoundException $exception) {
+        } catch (FileDoesNotExistsException $exception) {
             // nope it does not
             $resourceAlreadyExists = false;
         }
 
         if (!$resourceAlreadyExists) {
             // write a resource to the storage
-            $connector = $this->getConnector($this->name, $this->options);
-            $connector->createFilesystem()->write($connector->getFullDirectory() . '/' . $sha1Hash, $content);
+            $client->upload(Path::fromString($sha1Hash), (string) $content);
         }
 
         return $resource;
@@ -169,13 +174,14 @@ class AkamaiStorage implements WritableStorageInterface {
      * @return boolean TRUE if removal was successful
      * @api
      */
-    public function deleteResource(PersistentResource $resource) {
-        $connector = $this->getConnector($this->name, $this->options);
+    public function deleteResource(PersistentResource $resource)
+    {
+        $client = $this->getClient($this->name, $this->options);
 
         try {
             // delete() returns boolean
-            $wasDeleted = $connector->createFilesystem()->delete($connector->getFullDirectory() . '/' . $resource->getSha1());
-        } catch (\League\Flysystem\FileNotFoundException $exception) {
+            $wasDeleted = $client->delete(Path::fromString(""), Filename::fromString($resource->getSha1()));
+        } catch (FileDoesNotExistsException $exception) {
             // In some rare cases the file might be missing in the storage but is still present in the db.
             // We need to process the corresponding exception to be able to also remove the resource from the db.
             $wasDeleted = true;
@@ -192,13 +198,13 @@ class AkamaiStorage implements WritableStorageInterface {
      * @return resource | boolean The resource stream or false if the stream could not be obtained
      * @api
      */
-    public function getStreamByResource(PersistentResource $resource) {
-        $connector = $this->getConnector($this->name, $this->options);
+    public function getStreamByResource(PersistentResource $resource)
+    {
+        $client = $this->getClient($this->name, $this->options);
         try {
-            return $connector->createFilesystem()->readStream($connector->getFullDirectory() . '/' . $resource->getSha1());
+            return $client->stream(Path::fromString($resource->getSha1()));
         } catch (\Exception $e) {
-            $message = sprintf('Could not retrieve stream for resource %s', $resource->getSha1());
-            $this->systemLogger->error($message, ['exception' => $e]);
+            $this->systemLogger->error(sprintf('Could not retrieve stream for resource %s', $resource->getSha1()));
             return false;
         }
     }
@@ -213,7 +219,8 @@ class AkamaiStorage implements WritableStorageInterface {
      * @throws Exception
      * @api
      */
-    public function getStreamByResourcePath($relativePath) {
+    public function getStreamByResourcePath($relativePath)
+    {
         throw new \RuntimeException('The method "getStreamByResourcePath" is not implemented by this storage driver, as it is not called from within Flow.');
     }
 
@@ -221,11 +228,13 @@ class AkamaiStorage implements WritableStorageInterface {
     /**
      * Retrieve all Objects stored in this storage.
      *
-     * @return \Generator<StorageObject>
+     * @return \Generator<\Neos\Flow\ResourceManagement\Storage\StorageObject>
      * @api
      */
-    public function getObjects() {
+    public function getObjects()
+    {
         foreach ($this->resourceManager->getCollectionsByStorage($this) as $collection) {
+            /* @phpstan-ignore-next-line */
             yield $this->getObjectsByCollection($collection);
         }
     }
@@ -238,11 +247,12 @@ class AkamaiStorage implements WritableStorageInterface {
      * @return \Generator<\Neos\Flow\ResourceManagement\Storage\StorageObject>
      * @api
      */
-    public function getObjectsByCollection(CollectionInterface $collection) {
+    public function getObjectsByCollection(CollectionInterface $collection)
+    {
         $iterator = $this->resourceRepository->findByCollectionNameIterator($collection->getName());
         foreach ($this->resourceRepository->iterate($iterator) as $resource) {
             /** @var \Neos\Flow\ResourceManagement\PersistentResource $resource */
-            $object = new StorageObject();
+            $object = new \Neos\Flow\ResourceManagement\Storage\StorageObject();
             $object->setFilename($resource->getFilename());
             $object->setSha1($resource->getSha1());
             $object->setStream(function () use ($resource) {
@@ -259,32 +269,35 @@ class AkamaiStorage implements WritableStorageInterface {
      * @param string $collectionName Name of the collection to import into
      * @return PersistentResource The imported resource
      */
-    protected function importTemporaryFile($temporaryPathAndFilename, $collectionName) {
+    protected function importTemporaryFile($temporaryPathAndFilename, $collectionName)
+    {
         $sha1Hash = sha1_file($temporaryPathAndFilename);
-        $md5Hash = md5_file($temporaryPathAndFilename);
 
         $resource = new PersistentResource();
-        $resource->setFileSize(filesize($temporaryPathAndFilename));
+        $resource->setFileSize((int) filesize($temporaryPathAndFilename));
         $resource->setCollectionName($collectionName);
-        $resource->setSha1($sha1Hash);
-        $resource->setMd5($md5Hash);
+        $resource->setSha1((string) $sha1Hash);
 
-        $connector = $this->getConnector($this->name, $this->options);
-
+        $client = $this->getClient($this->name, $this->options);
         try {
             // first checking if a resource exists, assuming it does
-            $connector->createFilesystem()->getMetadata($connector->getFullDirectory() . '/' . $sha1Hash);
+            $client->stat(Path::fromString((string) $sha1Hash));
             $resourceAlreadyExists = true;
-        } catch (\League\Flysystem\FileNotFoundException $exception) {
+        } catch (FileDoesNotExistsException $exception) {
             // nope it does not
             $resourceAlreadyExists = false;
         }
 
         if (!$resourceAlreadyExists) {
-            // write new ressource to storage
-            $connector->createFilesystem()->write($connector->getFullDirectory() . '/' . $sha1Hash, fopen($temporaryPathAndFilename, 'r'));
+            // write new resource to storage
+            $client->upload(Path::fromString((string) $sha1Hash), (string) file_get_contents($temporaryPathAndFilename));
         }
 
         return $resource;
+    }
+
+    public function getFullPath(): Path
+    {
+        return $this->getClient($this->name, $this->options)->getFullPath();
     }
 }
