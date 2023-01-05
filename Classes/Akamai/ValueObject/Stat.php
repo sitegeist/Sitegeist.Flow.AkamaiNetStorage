@@ -15,7 +15,8 @@ final class Stat
         public Path $path,
         public string $type,
         public string $name,
-        public int $mtime
+        public int $mtime,
+        public ?string $md5 = null
     ) {
     }
 
@@ -30,8 +31,9 @@ final class Stat
         $type = $data->file['type'];
         $name = $data->file['name'];
         $mtime = (int) $data->file['mtime'];
+        $md5 = $data->file['md5'] ?: null;
 
-        return new self($path, $type, $name, $mtime);
+        return new self($path, $type, $name, $mtime, $md5);
     }
 
     public function isDirectory(): bool

@@ -108,6 +108,11 @@ final class Client
     {
         $this->initialize();
         try {
+            $stat = $this->stat($path);
+            if ($stat && $stat->isFile() && $stat->md5 == md5($content)) {
+                return $stat;
+            }
+
             /** @phpstan-ignore-next-line */
             $this->httpClient->put(
                 $this->buildUriPathFromFilePath($path),
@@ -166,7 +171,7 @@ final class Client
     public function delete(Path $path, Filename $filename): bool
     {
         $this->initialize();
-        $finalPath = $path->urlEncode()->append(Path::fromString((string) $filename));
+        $finalPath = $path->append(Path::fromString((string) $filename));
 
         try {
             /** @phpstan-ignore-next-line */

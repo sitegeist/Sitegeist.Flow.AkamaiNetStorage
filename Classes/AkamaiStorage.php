@@ -180,7 +180,7 @@ class AkamaiStorage implements WritableStorageInterface
 
         try {
             // delete() returns boolean
-            $wasDeleted = $client->delete($client->getFullPath(), Filename::fromString($resource->getSha1()));
+            $wasDeleted = $client->delete(Path::fromString(""), Filename::fromString($resource->getSha1()));
         } catch (FileDoesNotExistsException $exception) {
             // In some rare cases the file might be missing in the storage but is still present in the db.
             // We need to process the corresponding exception to be able to also remove the resource from the db.

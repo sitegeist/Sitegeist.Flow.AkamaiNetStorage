@@ -173,11 +173,9 @@ class AkamaiTarget implements TargetInterface
     public function unpublishResource(PersistentResource $resource)
     {
         $client = $this->getClient($this->name, $this->options);
-        $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
-
         try {
-            // delete() returns boolean
-            $client->delete(Path::fromString($resource->getRelativePublicationPath()), Filename::fromString($resource->getFilename()));
+            $path = ($resource->getRelativePublicationPath() !== '') ? $resource->getRelativePublicationPath() : $resource->getSha1() . '/';
+            $client->delete(Path::fromString($path), Filename::fromString($resource->getFilename()));
         } catch (FileDoesNotExistsException $exception) {
         }
     }
