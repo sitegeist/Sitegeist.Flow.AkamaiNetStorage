@@ -51,12 +51,26 @@ final class Path
 
     public function urlEncode(): self
     {
-        return self::fromString(urlencode($this->value));
+        $parts = explode(self::DIRECTORY_SEPARATOR, $this->value);
+        $encodedParts = array_map(
+            function (string $pathSegment) {
+                return rawurlencode($pathSegment);
+            },
+            $parts
+        );
+        return self::fromString(implode(self::DIRECTORY_SEPARATOR, $encodedParts));
     }
 
     public function urlDecode(): self
     {
-        return self::fromString(urldecode($this->value));
+        $parts = explode(self::DIRECTORY_SEPARATOR, $this->value);
+        $decodedParts = array_map(
+            function (string $pathSegment) {
+                return rawurldecode($pathSegment);
+            },
+            $parts
+        );
+        return self::fromString(implode(self::DIRECTORY_SEPARATOR, $decodedParts));
     }
 
     public static function root(): self

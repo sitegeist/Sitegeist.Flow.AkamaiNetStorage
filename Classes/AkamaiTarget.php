@@ -123,7 +123,7 @@ class AkamaiTarget implements TargetInterface
     public function getPublicStaticResourceUri($relativePathAndFilename)
     {
         $client = $this->getClient($this->name, $this->options);
-        $path = Path::fromString($this->encodeRelativePathAndFilenameForUri($relativePathAndFilename));
+        $path = Path::fromString($relativePathAndFilename);
         return 'https://' . $client->staticHost . '/' . $client->buildPublicUriPath($path);
     }
 
@@ -174,8 +174,7 @@ class AkamaiTarget implements TargetInterface
     {
         $client = $this->getClient($this->name, $this->options);
         try {
-            $path = ($resource->getRelativePublicationPath() !== '') ? $resource->getRelativePublicationPath() : $resource->getSha1() . '/';
-            $client->delete(Path::fromString($path), Filename::fromString($resource->getFilename()));
+            $client->delete(Path::fromString($this->getRelativePublicationPathAndFilename($resource)));
         } catch (FileDoesNotExistsException $exception) {
         }
     }
@@ -188,9 +187,8 @@ class AkamaiTarget implements TargetInterface
      */
     public function getPublicPersistentResourceUri(PersistentResource $resource)
     {
-        $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
         $client = $this->getClient($this->name, $this->options);
-        $path = Path::fromString($encodedRelativeTargetPathAndFilename);
+        $path = Path::fromString($this->getRelativePublicationPathAndFilename($resource));
         return 'https://' . $client->staticHost . '/' . $client->buildPublicUriPath($path);
     }
 
@@ -205,14 +203,13 @@ class AkamaiTarget implements TargetInterface
     protected function publishFile($sourceStream, $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData): void
     {
         $client = $this->getClient($this->name, $this->options);
-        $encodedRelativeTargetPathAndFilename = $this->encodeRelativePathAndFilenameForUri($relativeTargetPathAndFilename);
 
         try {
             $content = stream_get_contents($sourceStream);
             if ($content === false) {
                 throw new FileDoesNotExistsException();
             }
-            $client->upload(Path::fromString($encodedRelativeTargetPathAndFilename), $content);
+            $client->upload(Path::fromString($relativeTargetPathAndFilename), $content);
             $this->systemLogger->debug(sprintf('Successfully published resource as object "%s" with Sha1 "%s"', $relativeTargetPathAndFilename, $metaData->getSha1() ?: 'unknown'));
         } catch (\Exception $e) {
             if (is_resource($sourceStream)) {
@@ -242,16 +239,5 @@ class AkamaiTarget implements TargetInterface
             $pathAndFilename = $object->getSha1() . '/' . $object->getFilename();
         }
         return $pathAndFilename;
-    }
-
-    /**
-     * Applies rawurlencode() to all path segments of the given $relativePathAndFilename
-     *
-     * @param string $relativePathAndFilename
-     * @return string
-     */
-    protected function encodeRelativePathAndFilenameForUri($relativePathAndFilename)
-    {
-        return implode('/', array_map('rawurlencode', explode('/', $relativePathAndFilename)));
     }
 }
