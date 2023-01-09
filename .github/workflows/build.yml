@@ -23,6 +23,8 @@ jobs:
             flow-versions: '7.3'
           - php-versions: '8.1'
             flow-versions: '8.1'
+          - php-versions: '8.1'
+            flow-versions: '8.2'
 
     runs-on: ubuntu-latest
 

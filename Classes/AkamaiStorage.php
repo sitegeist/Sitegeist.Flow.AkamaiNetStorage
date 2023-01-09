@@ -150,14 +150,8 @@ class AkamaiStorage implements WritableStorageInterface
         $resource->setSha1($sha1Hash);
 
         $client = $this->getClient($this->name, $this->options);
-        try {
-            // first checking if a resource exists, assuming it does
-            $client->stat(Path::fromString($sha1Hash));
-            $resourceAlreadyExists = true;
-        } catch (FileDoesNotExistsException $exception) {
-            // nope it does not
-            $resourceAlreadyExists = false;
-        }
+        $stat = $client->stat(Path::fromString($sha1Hash));
+        $resourceAlreadyExists = !is_null($stat);
 
         if (!$resourceAlreadyExists) {
             // write a resource to the storage
@@ -180,7 +174,7 @@ class AkamaiStorage implements WritableStorageInterface
 
         try {
             // delete() returns boolean
-            $wasDeleted = $client->delete(Path::fromString(""), Filename::fromString($resource->getSha1()));
+            $wasDeleted = $client->delete(Path::fromString($resource->getSha1()));
         } catch (FileDoesNotExistsException $exception) {
             // In some rare cases the file might be missing in the storage but is still present in the db.
             // We need to process the corresponding exception to be able to also remove the resource from the db.
@@ -279,14 +273,8 @@ class AkamaiStorage implements WritableStorageInterface
         $resource->setSha1((string) $sha1Hash);
 
         $client = $this->getClient($this->name, $this->options);
-        try {
-            // first checking if a resource exists, assuming it does
-            $client->stat(Path::fromString((string) $sha1Hash));
-            $resourceAlreadyExists = true;
-        } catch (FileDoesNotExistsException $exception) {
-            // nope it does not
-            $resourceAlreadyExists = false;
-        }
+        $stat = $client->stat(Path::fromString((string) $sha1Hash));
+        $resourceAlreadyExists = !is_null($stat);
 
         if (!$resourceAlreadyExists) {
             // write new resource to storage

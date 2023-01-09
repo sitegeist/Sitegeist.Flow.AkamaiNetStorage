@@ -7,6 +7,7 @@ use Neos\Flow\Cli\CommandController;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceRepository;
 use Neos\Utility\Arrays;
+use Psr\Log\LoggerInterface;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\Client;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\File;
 use Sitegeist\Flow\AkamaiNetStorage\Akamai\ValueObject\Filename;
@@ -46,6 +47,12 @@ class AkamaiCommandController extends CommandController
      * @var array<string, mixed>
      */
     protected $connectorOptions;
+
+    /**
+     * @Flow\Inject
+     * @var LoggerInterface
+     */
+    protected $systemLogger;
 
     public function __construct()
     {
@@ -88,11 +95,11 @@ class AkamaiCommandController extends CommandController
             $this->quit(1);
         }
 
-        $client = Client::fromOptions($this->connectorOptions);
+        $client = Client::fromOptions($this->connectorOptions, $this->systemLogger);
         try {
             $directoryListing = $client->dir(Path::fromString($path));
         } catch (FileDoesNotExistsException $exception) {
-            $this->outputLine('The given path "%s" did not return a valid response', [(string) $path]);
+            $this->outputLine('The given path "%s" does not exist', [(string) $path]);
             $this->quit(1);
         }
 
@@ -126,7 +133,7 @@ class AkamaiCommandController extends CommandController
      */
     public function deleteCommand(string $path, bool $yes = false): void
     {
-        $client = Client::fromOptions($this->connectorOptions);
+        $client = Client::fromOptions($this->connectorOptions, $this->systemLogger);
         $path = Path::fromString($path);
 
         if ($yes === false) {
@@ -138,19 +145,16 @@ class AkamaiCommandController extends CommandController
             }
         }
 
-        try {
-            $metadata = $client->stat($path);
-        } catch (FileDoesNotExistsException $exception) {
+        $metadata = $client->stat($path);
+        if (is_null($metadata)) {
             $this->outputLine('The Akamai path "%s" does not exists', [$path]);
             $this->quit(1);
         }
 
-        /* @phpstan-ignore-next-line */
         if ($metadata->isDirectory()) {
             $client->rmdir($path);
         } else {
-            /* @phpstan-ignore-next-line */
-            $client->delete($path, Filename::fromString($metadata->name));
+            $client->delete($path);
         }
     }
 
@@ -161,18 +165,15 @@ class AkamaiCommandController extends CommandController
      */
     public function metadataCommand(string $path): void
     {
-        $client = Client::fromOptions($this->connectorOptions);
-        try {
-            $metadata = $client->stat(Path::fromString($path));
-        } catch (FileDoesNotExistsException $exception) {
+        $client = Client::fromOptions($this->connectorOptions, $this->systemLogger);
+        $metadata = $client->stat(Path::fromString($path));
+        if (is_null($metadata)) {
             $this->outputLine('Path "%s" was not found', [$path]);
             $this->quit(1);
         }
 
-
         $headers = ['key', 'value'];
         $rows = [];
-        /* @phpstan-ignore-next-line */
         foreach (get_object_vars($metadata) as $key => $value) {
             $rows[] = [$key, $value];
         }
@@ -196,7 +197,7 @@ class AkamaiCommandController extends CommandController
         }
 
         $options = $this->connectorOptions;
-        $client = Client::fromOptions($options);
+        $client = Client::fromOptions($options, $this->systemLogger);
         try {
             $directoryListing = $client->dir(Path::fromString($path));
         } catch (FileDoesNotExistsException $exception) {

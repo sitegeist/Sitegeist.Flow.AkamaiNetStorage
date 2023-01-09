@@ -74,10 +74,9 @@ final class Client
     public function canConnect(): bool
     {
         $this->initialize();
-        try {
-            $this->stat(Path::root());
+        if ($this->stat(Path::root())) {
             return true;
-        } catch (FileDoesNotExistsException $exception) {
+        } else {
             return false;
         }
     }
@@ -94,11 +93,6 @@ final class Client
                 ]
             ]);
         } catch (\Exception $exception) {
-            if ($exception->getCode() === 404) {
-                throw new FileDoesNotExistsException(
-                    sprintf('Akamai file object "%s" does not exist', (string) $path)
-                );
-            }
             return null;
         }
         return Stat::fromXml($path, (string) $response->getBody());
@@ -107,12 +101,12 @@ final class Client
     public function upload(Path $path, string $content): ?Stat
     {
         $this->initialize();
-        try {
-            $stat = $this->stat($path);
-            if ($stat && $stat->isFile() && $stat->md5 == md5($content)) {
-                return $stat;
-            }
+        $stat = $this->stat($path);
+        if ($stat && $stat->isFile() && $stat->md5 == md5($content)) {
+            return $stat;
+        }
 
+        try {
             /** @phpstan-ignore-next-line */
             $this->httpClient->put(
                 $this->buildUriPathFromFilePath($path),
@@ -168,14 +162,13 @@ final class Client
         return $directoryListing;
     }
 
-    public function delete(Path $path, Filename $filename): bool
+    public function delete(Path $path): bool
     {
         $this->initialize();
-        $finalPath = $path->append(Path::fromString((string) $filename));
 
         try {
             /** @phpstan-ignore-next-line */
-            $this->httpClient->put($this->buildUriPathFromFilePath($finalPath), [
+            $this->httpClient->put($this->buildUriPathFromFilePath($path), [
                 'headers' => [
                     'X-Akamai-ACS-Action' => Action::fromString('delete')->acsActionHeader()
                 ]
@@ -195,7 +188,7 @@ final class Client
 
         foreach ($dir->files as $file) {
             if ($file->isFile()) {
-                $this->delete($file->path, Filename::fromString($file->name));
+                $this->delete($file->path->append(Path::fromString($file->name)));
             } elseif ($file->isDirectory()) {
                 $this->rmdir($file->fullPath());
             }
@@ -204,7 +197,7 @@ final class Client
         try {
             if ($this->dir($path) instanceof DirectoryListing) {
                 /** @phpstan-ignore-next-line */
-                $this->httpClient->put($this->buildUriPathFromFilePath($path->urlEncode(), false), [
+                $this->httpClient->put($this->buildUriPathFromFilePath($path), [
                     'headers' => [
                         'X-Akamai-ACS-Action' => Action::fromString('rmdir')->acsActionHeader()
                     ]
@@ -246,9 +239,9 @@ final class Client
             ->append($this->workingDirectory ?? Path::fromString(''));
     }
 
-    protected function buildUriPathFromFilePath(Path $path, bool $applyPathPrefix = true): string
+    protected function buildUriPathFromFilePath(Path $path): string
     {
-        return $this->applyPathPrefix($path);
+        return $this->applyPathPrefix($path)->urlEncode();
     }
 
     protected function applyPathPrefix(Path $path): Path
@@ -261,7 +254,7 @@ final class Client
     public function buildPublicUriPath(Path $path): Path
     {
         return Path::fromString((string) $this->restrictedDirectory)
-            ->append($this->workingDirectory ? $path->prepend($this->workingDirectory) : $path);
+            ->append($this->workingDirectory ? $path->prepend($this->workingDirectory) : $path)->urlEncode();
     }
 
     private function initialize(): void
@@ -281,12 +274,13 @@ final class Client
         );
         $stack = HandlerStack::create();
         $stack->push($authenticationHandler, 'authentication-handler');
-
+        if ($this->logger) {
+            $loggingHandler = Logging::withLogger($this->logger);
+            $stack->push($loggingHandler, 'logging-handler');
+        }
         $options['handler'] = $stack;
 
-        $this->httpClient = new GuzzleClient(
-            $options
-        );
+        $this->httpClient = new GuzzleClient($options);
         $this->initialized = true;
     }
 }
