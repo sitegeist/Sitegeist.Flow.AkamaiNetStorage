@@ -37,7 +37,7 @@ final class Client
         protected ?RestrictedDirectory $restrictedDirectory = null,
         protected ?Proxy $proxy = null,
         protected ?Path $workingDirectory = null,
-        protected ?LoggerInterface $logger
+        protected ?LoggerInterface $logger = null
     ) {
     }
 
